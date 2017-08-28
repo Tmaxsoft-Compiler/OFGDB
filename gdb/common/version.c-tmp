@@ -1,5 +1,0 @@
-#include "version.h"
-const char version[] = "";
-const char host_name[] = "";
-const char target_name[] = "";
-const char ofgdb_commit_id[] = "";
