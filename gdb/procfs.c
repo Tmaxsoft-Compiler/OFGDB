@@ -3320,10 +3320,10 @@ procfs_store_registers (struct target_ops *ops,
 
 static const unsigned int num_of_path_lookup = 4;
 static const char* proc_path_lookup[] = {
-    "/proc/%u/path/a.out" /* Most UNIXes with procfs (Solaris) */
-    "/proc/%u/file"       /* BSD */
-    "/proc/%u/exe"        /* Linux, Windows, NetBSD */
-    "/proc/%u/a.out"      /* others? */
+    "/proc/%u/path/a.out", /* Most UNIXes with procfs (Solaris) */
+    "/proc/%u/file",       /* BSD */
+    "/proc/%u/exe",        /* Linux, Windows, NetBSD */
+    "/proc/%u/a.out"       /* others? */
 };
 
 /* Get a fully qualified path to the debugged process */
