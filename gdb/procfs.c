@@ -52,6 +52,7 @@
 #include "auxv.h"
 #include "procfs.h"
 #include "observer.h"
+#include "ansidecl.h"
 
 /* This module provides the interface between GDB and the
    /proc file system, which is used on many versions of Unix
@@ -119,6 +120,7 @@ static void procfs_fetch_registers (struct target_ops *,
 				    struct regcache *, int);
 static void procfs_store_registers (struct target_ops *,
 				    struct regcache *, int);
+static char* procfs_child_pid_to_exec_file (int);
 static void procfs_pass_signals (int, unsigned char *);
 static void procfs_kill_inferior (struct target_ops *ops);
 static void procfs_mourn_inferior (struct target_ops *ops);
@@ -192,6 +194,7 @@ procfs_target (void)
   t->to_resume = procfs_resume;
   t->to_fetch_registers = procfs_fetch_registers;
   t->to_store_registers = procfs_store_registers;
+  t->to_pid_to_exec_file = procfs_child_pid_to_exec_file;
   t->to_xfer_partial = procfs_xfer_partial;
   t->deprecated_xfer_memory = procfs_xfer_memory;
   t->to_pass_signals = procfs_pass_signals;
@@ -3313,6 +3316,39 @@ procfs_store_registers (struct target_ops *ops,
       if (!proc_set_fpregs (pi))
 	proc_error (pi, "store_registers, set_fpregs", __LINE__);
     }
+}
+
+static const unsigned int num_of_path_lookup = 4;
+static const char* proc_path_lookup[] = {
+    "/proc/%u/path/a.out" /* Most UNIXes with procfs (Solaris) */
+    "/proc/%u/file"       /* BSD */
+    "/proc/%u/exe"        /* Linux, Windows, NetBSD */
+    "/proc/%u/a.out"      /* others? */
+};
+
+/* Get a fully qualified path to the debugged process */
+static char* procfs_child_pid_to_exec_file (int pid)
+{
+    static char buf[PATH_MAX] = {0};
+    char name[PATH_MAX] = {0};
+    ssize_t sz = -1;
+    unsigned int path_idx = 0;
+
+    pid = (pid >= 0)? pid : -pid;
+
+    for (path_idx = 0; path_idx < num_of_path_lookup; ++path_idx) {
+        xsnprintf (name, sizeof(name), proc_path_lookup[path_idx], (unsigned int) pid);
+        sz = readlink (name, buf, sizeof (name));
+
+        if (0 < sz) {
+            buf[sz] = '\0';
+            return buf;
+        }
+    }
+
+    /* This is the default behavior as defined in target.h
+     * and implemented in inf_child_pid_to_exec_file() */
+    return NULL;
 }
 
 static int
