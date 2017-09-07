@@ -612,7 +612,7 @@ _print_value_fields (struct type* type, const gdb_byte* valaddr, int offset, COR
 
             fputs_filtered (TYPE_FIELD_NAME (type, i), stream);
             annotate_field_name_end ();
-            fputs_filtered (": ", stream);
+            fputs_filtered (" = ", stream);
             annotate_field_value ();
 
             if (!field_is_static (&TYPE_FIELD (type, i)) && TYPE_FIELD_PACKED (type, i)) {
