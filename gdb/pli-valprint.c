@@ -638,16 +638,10 @@ _print_value_fields (struct type* type, const gdb_byte* valaddr, int offset, COR
                 }
                 else {
                     struct value_print_options opts = *options;
-                    unsigned int field_offset;
 
                     opts.deref_ref = 0;
-                    field_offset = offset * 8 + TYPE_PLI_STRUCT_BIT_OFFSET (type) + FIELD_BITPOS_LVAL (TYPE_FIELD (type, i));
-     
-                    if (field_offset % 8 != 0)
-                        TYPE_PLI_STRUCT_BIT_OFFSET (FIELD_TYPE (TYPE_FIELD (type, i))) = field_offset % 8;
-
                     pli_val_print (TYPE_FIELD_TYPE (type, i), 
-                                   valaddr, field_offset / 8, address, 
+                                   valaddr, offset + TYPE_FIELD_BITPOS (type, i) / 8 , address, 
                                    stream, recurse + 1, val, &opts);
                 }
             }

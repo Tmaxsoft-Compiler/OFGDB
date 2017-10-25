@@ -679,7 +679,6 @@ struct pli_attribute {
     union pli_additional_attr additional_attr;
 /*    int8_t aligned; UNALIGNED / ALIGNED: currently, only BIT types use this attribute */
     int8_t endian; /* UNKNOWN / BIG / LITTLE */
-    unsigned int struct_bit_offset;
 };
 
 #define TYPE_PLI_ATTR(thistype) (thistype)->pli_attr
@@ -692,7 +691,6 @@ struct pli_attribute {
 #define TYPE_PLI_PIC_STR(thistype) (thistype)->pli_attr->additional_attr.pic_string
 /* #define TYPE_PLI_ALIGNED(thistype) (thistype)->pli_attr->aligned */
 #define TYPE_PLI_ENDIAN(thistype) (thistype)->pli_attr->endian
-#define TYPE_PLI_STRUCT_BIT_OFFSET(thistype) (thistype)->pli_attr->struct_bit_offset
 
 /* A ``struct type'' describes a particular instance of a type, with
    some particular qualification.  */
