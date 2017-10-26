@@ -580,8 +580,9 @@ _print_value_fields (struct type* type, const gdb_byte* valaddr, int offset, COR
     len = TYPE_NFIELDS (type);
     n_baseclasses = TYPE_N_BASECLASSES (type);
 
-    if (!len && n_baseclasses == 1)
+    if (!len && n_baseclasses == 1) {
         fprintf_filtered (stream, "<No data fields>");
+    }
     else {
         int fields_seen = 0;
 
@@ -592,6 +593,7 @@ _print_value_fields (struct type* type, const gdb_byte* valaddr, int offset, COR
                 if (!options->static_field_print)
                     continue;
             }
+
             if (fields_seen)
                 fprintf_filtered (stream, ", ");
 
@@ -615,36 +617,33 @@ _print_value_fields (struct type* type, const gdb_byte* valaddr, int offset, COR
             fputs_filtered (" = ", stream);
             annotate_field_value ();
 
-            if (!field_is_static (&TYPE_FIELD (type, i)) && TYPE_FIELD_PACKED (type, i)) {
-                /* #XXX: may use BIT type members */
+            if (TYPE_FIELD_IGNORE (type, i)) {
+                fputs_filtered ("<optimized out or zero length>", stream);
+            }
+            else if (field_is_static (&TYPE_FIELD (type, i))) {
+                struct value_print_options opts;
+                struct value *v = value_static_field (type, i);
+                struct type *t = check_typedef (value_type (v));
+
+                if (TYPE_CODE (t) == TYPE_CODE_STRUCT)
+                    v = value_addr (v);
+
+                opts = *options;
+                opts.deref_ref = 0;
+                common_val_print (v, stream, recurse + 1, &opts, current_language);
+            }
+            else if (TYPE_FIELD_TYPE (type, i) == NULL) {
+                fputs_filtered ("<unknown type>", stream);
             }
             else {
-                if (TYPE_FIELD_IGNORE (type, i)) {
-                    fputs_filtered ("<optimized out or zero length>", stream);
-                }
-                else if (field_is_static (&TYPE_FIELD (type, i))) {
-                    struct value_print_options opts;
-                    struct value *v = value_static_field (type, i);
-                    struct type *t = check_typedef (value_type (v));
+                struct value_print_options opts = *options;
 
-                    if (TYPE_CODE (t) == TYPE_CODE_STRUCT)
-                        v = value_addr (v);
-                    opts = *options;
-                    opts.deref_ref = 0;
-                    common_val_print (v, stream, recurse + 1, &opts, current_language);
-                }
-                else if (TYPE_FIELD_TYPE (type, i) == NULL) {
-                    fputs_filtered ("<unknown type>", stream);
-                }
-                else {
-                    struct value_print_options opts = *options;
-
-                    opts.deref_ref = 0;
-                    pli_val_print (TYPE_FIELD_TYPE (type, i), 
-                                   valaddr, offset + TYPE_FIELD_BITPOS (type, i) / 8 , address, 
-                                   stream, recurse + 1, val, &opts);
-                }
+                opts.deref_ref = 0;
+                pli_val_print (TYPE_FIELD_TYPE (type, i), 
+                               valaddr, offset + TYPE_FIELD_BITPOS (type, i) / 8 , address, 
+                               stream, recurse + 1, val, &opts);
             }
+
             annotate_field_end ();
         }
 

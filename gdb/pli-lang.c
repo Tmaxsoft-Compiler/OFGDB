@@ -97,7 +97,7 @@ value_subscripted_rvalue_pli_bit (struct value* array, LONGEST index, int lowerb
     /* set offset */
     set_value_offset (v, value_offset (array) + (elt_offs / 8));
     TYPE_LENGTH (elt_type) = elt_byte_size;
-    TYPE_PLI_BITOFFSET (elt_type) = value_offset (array) + (elt_offs % 8);
+    TYPE_PLI_BITOFFSET (elt_type) = elt_offs %  8;
 
     return v;
 }
