@@ -76,6 +76,7 @@ const char display_value[10] = {
 
 void _print_signed_fixed_bin_val (char*, const struct type*, const gdb_byte*);
 void _print_unsigned_fixed_bin_val (char*, const struct type*, const gdb_byte*);
+void _print_bit_string_val (struct type*, const gdb_byte*, int16_t, struct ui_file*);
 void _print_bit_array_elements (struct type*, const gdb_byte*, int, CORE_ADDR, struct ui_file*,
                                 int, const struct value*, const struct value_print_options*, unsigned int);
 void _val_print_bit_array (struct type*, const gdb_byte*, int, CORE_ADDR, 
@@ -409,6 +410,36 @@ _print_unsigned_fixed_bin_val (char* buf, const struct type *type, const gdb_byt
 
 }
 
+/* print BIT type value */
+void
+_print_bit_string_val (struct type* type, const gdb_byte* valaddr, int16_t bit_offset, struct ui_file* stream)
+{
+    /* #TODO: currently, OFPLI does not support varying bit type */
+    /* int8_t varying_flag = TYPE_PLI_VARYING (type); */
+    const char* bit_val = valaddr;
+    char* buf = NULL;
+    int bit_len = 0, buf_idx = 0, idx, idx_2;
+    int buf_len = 0;
+
+    /* NONVARYING BIT */
+    bit_len = TYPE_PLI_BITSIZE (type);
+    buf_len = TYPE_LENGTH (type) * 8;
+    buf = (char*) alloca (buf_len + 1);
+
+    for (idx = 0; idx < TYPE_LENGTH (type); idx++) {
+        for (idx_2 = 7; idx_2 >= 0; idx_2--) {
+            buf[buf_idx] = ((bit_val[idx] >> idx_2) & 1) + '0';
+            buf_idx++;
+        }
+    }
+
+    if (bit_offset != 0)
+        memmove(buf, buf + bit_offset, bit_len);
+
+    buf[bit_len] = 0x00;
+    fputs_filtered (buf, stream);
+}
+
 /* print BIT type array elements: based on val_print_array_elements function in valprint.c */
 void
 _print_bit_array_elements (struct type* type, const gdb_byte* valaddr, int embedded_bit_offset, CORE_ADDR address, struct ui_file* stream,
@@ -426,7 +457,7 @@ _print_bit_array_elements (struct type* type, const gdb_byte* valaddr, int embed
     LONGEST low_bound, high_bound;
 
     /* for getting the element size by bit unit */
-    unsigned int elt_size, elt_offs;
+    unsigned int elt_size, elt_offs, struct_member_offs;
     unsigned int num_of_leaf_elem = 1; 
     struct type* leaf_elttype = elttype;
     struct type* unresolved_elttype;
@@ -460,11 +491,12 @@ _print_bit_array_elements (struct type* type, const gdb_byte* valaddr, int embed
         num_of_leaf_elem *= (high_bound - low_bound + 1);
     }
     elt_size = num_of_leaf_elem * TYPE_PLI_BITSIZE (leaf_elttype);
+    struct_member_offs = TYPE_PLI_BITOFFSET (leaf_elttype);
 
     annotate_array_section_begin (i, elttype);
     for (; i < len && things_printed < options->print_max; i++)
     { 
-        elt_offs = elt_size * i;
+        elt_offs = struct_member_offs + elt_size * i;
 
         if (i != 0)
         { 
@@ -508,9 +540,9 @@ _print_bit_array_elements (struct type* type, const gdb_byte* valaddr, int embed
                 /* set offset */
                 elt_byte_size = (embedded_bit_offset + elt_offs + elt_size) / 8 - (embedded_bit_offset + elt_offs) / 8 + 1;
                 TYPE_LENGTH (elttype) = elt_byte_size;
-                TYPE_PLI_BITOFFSET (elttype) = (embedded_bit_offset + elt_offs) % 8;
 
-                pli_val_print (elttype, valaddr, (embedded_bit_offset + elt_offs) / 8, address, stream, recurse + 1, val, options);
+                _print_bit_string_val (elttype, valaddr + (embedded_bit_offset + elt_offs) / 8, 
+                                       (embedded_bit_offset + elt_offs) %  8, stream);
             }
 
             annotate_elt_rep (reps);
@@ -531,9 +563,9 @@ _print_bit_array_elements (struct type* type, const gdb_byte* valaddr, int embed
                 /* set offset */
                 elt_byte_size = (embedded_bit_offset + elt_offs + elt_size) / 8 - (embedded_bit_offset + elt_offs) / 8 + 1;
                 TYPE_LENGTH (elttype) = elt_byte_size;
-                TYPE_PLI_BITOFFSET (elttype) = (embedded_bit_offset + elt_offs) % 8;
 
-                pli_val_print (elttype, valaddr, (embedded_bit_offset + elt_offs) / 8, address, stream, recurse + 1, val, options);
+                _print_bit_string_val (elttype, valaddr + (embedded_bit_offset + elt_offs) / 8, 
+                                       (embedded_bit_offset + elt_offs) %  8, stream);
             }
 
             annotate_elt ();
@@ -935,30 +967,7 @@ pli_val_print (struct type* type, const gdb_byte* valaddr, int embedded_offset, 
 
         case TYPE_CODE_BIT:
             {
-                /* #TODO: currently, OFPLI does not support varying bit type */
-                /* int8_t varying_flag = TYPE_PLI_VARYING (type); */
-                const char* bit_val = valaddr + embedded_offset;
-                char* buf = NULL;
-                int bit_len = 0, buf_idx = 0, idx, idx_2;
-                int buf_len = 0;
-
-                /* NONVARYING BIT */
-                bit_len = TYPE_PLI_BITSIZE (type);
-                buf_len = TYPE_LENGTH (type) * 8;
-                buf = (char*) alloca (buf_len + 1);
-
-                for (idx = 0; idx < TYPE_LENGTH (type); idx++) {
-                    for (idx_2 = 7; idx_2 >= 0; idx_2--) {
-                        buf[buf_idx] = ((bit_val[idx] >> idx_2) & 1) + '0';
-                        buf_idx++;
-                    }
-                }
-
-                if (TYPE_PLI_BITOFFSET (type) != 0)
-                    memmove(buf, buf + TYPE_PLI_BITOFFSET (type), bit_len);
-                
-                buf[bit_len] = 0x00;
-                fputs_filtered (buf, stream);
+                _print_bit_string_val (type, valaddr + embedded_offset, TYPE_PLI_BITOFFSET (type), stream);
             }
             break;
 
