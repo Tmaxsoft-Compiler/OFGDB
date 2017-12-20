@@ -99,11 +99,15 @@ _print_signed_fixed_bin_val (char* buf, const struct type* type, const gdb_byte*
     /* decoding value: consider endianity */
     /* 1: big endian & 2: little endian */
     if (TYPE_LENGTH (type) == 1) {
-        const int8_t* fixedbin_val_ptr = valaddr;
+        int8_t* fixedbin_val_ptr = (int8_t*) alloca(1);
+        memcpy(fixedbin_val_ptr, valaddr, 1);
+
         fixedbin_value = (int8_t) *fixedbin_val_ptr;
     }
     else if (TYPE_LENGTH (type) == 2) {
-        const int16_t* fixedbin_val_ptr = valaddr;
+        int16_t* fixedbin_val_ptr = (int16_t*) alloca(2);
+        memcpy(fixedbin_val_ptr, valaddr, 2);
+
         int16_t fixedbin_value_org = (int16_t) *fixedbin_val_ptr ;
 
         if (endian_flag == 1) {
@@ -120,7 +124,9 @@ _print_signed_fixed_bin_val (char* buf, const struct type* type, const gdb_byte*
         fixedbin_value = (int16_t) fixedbin_value_org;
     }
     else if (TYPE_LENGTH (type) == 4) {
-        const int32_t* fixedbin_val_ptr = valaddr;
+        int32_t* fixedbin_val_ptr = (int32_t*) alloca(4);
+        memcpy(fixedbin_val_ptr, valaddr, 4);
+
         int32_t fixedbin_value_org = (int32_t) *fixedbin_val_ptr;
 
         if (endian_flag == 1) {
@@ -137,7 +143,9 @@ _print_signed_fixed_bin_val (char* buf, const struct type* type, const gdb_byte*
         fixedbin_value = (int32_t) fixedbin_value_org;
     }
     else if (TYPE_LENGTH (type) == 8) {
-        const int64_t* fixedbin_val_ptr = valaddr;
+        int64_t* fixedbin_val_ptr = (int64_t*) alloca(8);
+        memcpy(fixedbin_val_ptr, valaddr, 8);
+
         fixedbin_value = (int64_t) *fixedbin_val_ptr;
 
         if (endian_flag == 1) {
@@ -268,11 +276,15 @@ _print_unsigned_fixed_bin_val (char* buf, const struct type *type, const gdb_byt
     /* decoding value: consider endianity */
     /* 1: big endian & 2: little endian */
     if (TYPE_LENGTH (type) == 1) {
-        const uint8_t* fixedbin_val_ptr = valaddr;
+        uint8_t* fixedbin_val_ptr = (uint8_t*) alloca(1);
+        memcpy(fixedbin_val_ptr, valaddr, 1);
+
         fixedbin_value = (uint8_t) *fixedbin_val_ptr;
     }
     else if (TYPE_LENGTH (type) == 2) {
-        const uint16_t* fixedbin_val_ptr = valaddr;
+        uint16_t* fixedbin_val_ptr = (uint16_t*) alloca(2);
+        memcpy(fixedbin_val_ptr, valaddr, 2);
+
         uint16_t fixedbin_value_org = (uint16_t) *fixedbin_val_ptr ;
 
         if (endian_flag == 1) {
@@ -289,7 +301,9 @@ _print_unsigned_fixed_bin_val (char* buf, const struct type *type, const gdb_byt
         fixedbin_value = (uint16_t) fixedbin_value_org;
     }
     else if (TYPE_LENGTH (type) == 4) {
-        const uint32_t* fixedbin_val_ptr = valaddr;
+        uint32_t* fixedbin_val_ptr = (uint32_t*) alloca(4);
+        memcpy(fixedbin_val_ptr, valaddr, 4);
+
         uint32_t fixedbin_value_org = (uint32_t) *fixedbin_val_ptr;
 
         if (endian_flag == 1) {
@@ -306,7 +320,9 @@ _print_unsigned_fixed_bin_val (char* buf, const struct type *type, const gdb_byt
         fixedbin_value = (uint32_t) fixedbin_value_org;
     }
     else if (TYPE_LENGTH (type) == 8) {
-        const uint64_t* fixedbin_val_ptr = valaddr;
+        uint64_t* fixedbin_val_ptr = (uint64_t*) alloca(8);
+        memcpy(fixedbin_val_ptr, valaddr, 8);
+
         fixedbin_value = (uint64_t) *fixedbin_val_ptr;
 
         if (endian_flag == 1) {
@@ -922,7 +938,8 @@ pli_val_print (struct type* type, const gdb_byte* valaddr, int embedded_offset, 
 
                 /* float */
                 if (TYPE_LENGTH (type) == 4) {
-                    const float* float_val_ptr = valaddr + embedded_offset;
+                    float* float_val_ptr = (float*) alloca(4);
+                    memcpy(float_val_ptr, valaddr + embedded_offset, 4);
 
                     if (digit == 1)
                         sprintf(buf, "%.*E", digit, *float_val_ptr);
@@ -931,7 +948,8 @@ pli_val_print (struct type* type, const gdb_byte* valaddr, int embedded_offset, 
                 }
                 /* double */
                 else if (TYPE_LENGTH (type) == 8) {
-                    const double* float_val_ptr = valaddr + embedded_offset;
+                    double* float_val_ptr = (double*) alloca(8);
+                    memcpy(float_val_ptr, valaddr + embedded_offset, 8);
 
                     if (digit == 1)
                         sprintf(buf, "%.*E", digit, *float_val_ptr);
@@ -940,7 +958,8 @@ pli_val_print (struct type* type, const gdb_byte* valaddr, int embedded_offset, 
                 }
                 /* ext-float */
                 else if (TYPE_LENGTH (type) == 16) {
-                    const __float128* float_val_ptr = valaddr + embedded_offset;
+                    __float128* float_val_ptr = (__float128*) alloca(16);
+                    memcpy(float_val_ptr, valaddr + embedded_offset, 16);
 
                     if (digit == 1) {
 #if defined(_ARC_X86)
