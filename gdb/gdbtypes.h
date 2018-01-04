@@ -150,11 +150,17 @@ enum type_code
 
     /* PL/I */
     TYPE_CODE_BIT,              /* BIT type */
-    TYPE_CODE_PACKED,           /* FIXED DEC type */
+    TYPE_CODE_PACKED,           /* FIXED DEC type */ /* & COBOL */
     TYPE_CODE_SIGNED_FIXED_B,   /* SIGNED FIXED BIN type */
     TYPE_CODE_UNSIGNED_FIXED_B, /* UNSIGNED FIXED BIN type */
     TYPE_CODE_PICTURE,          /* PICTURE type */
-    TYPE_CODE_DBCS,             /* GRAPHIC, WIDECHAR type */
+    TYPE_CODE_DBCS,             /* GRAPHIC, WIDECHAR type */ /* & COBOL */
+
+	/* COBOL */
+	TYPE_CODE_ZONED,
+	TYPE_CODE_EDITED,
+	TYPE_CODE_SIGNED_FIXED,
+	TYPE_CODE_UNSIGNED_FIXED,
 
     /* Internal function type.  */
     TYPE_CODE_INTERNAL_FUNCTION
@@ -692,6 +698,25 @@ struct pli_attribute {
 /* #define TYPE_PLI_ALIGNED(thistype) (thistype)->pli_attr->aligned */
 #define TYPE_PLI_ENDIAN(thistype) (thistype)->pli_attr->endian
 
+/* additional info. of COBOL variables */
+struct cobol_attr
+{
+    char *pic_string;
+    int digit;
+    int scale;
+    int sign; /* {unsigned,leading_overpunch,trailing_overpunch,leading_separate,trailing_separate} */
+    int endian; /* {BIG, LITTLE, UNKNOWN} */
+};
+
+#define TYPE_COB_ATTR(thistype) (thistype)->cob_attr
+#define TYPE_COB_PIC_STR(thistype) (thistype)->cob_attr->pic_string
+#define TYPE_COB_DIGIT(thistype) (thistype)->cob_attr->digit
+#define TYPE_COB_SCALE(thistype) (thistype)->cob_attr->scale
+#define TYPE_COB_SIGN(thistype) (thistype)->cob_attr->sign
+#define TYPE_COB_ENDIAN(thistype) (thistype)->cob_attr->endian
+
+
+
 /* A ``struct type'' describes a particular instance of a type, with
    some particular qualification.  */
 struct type
@@ -756,6 +781,9 @@ struct type
 
   /* Only used in PL/I language */
   struct pli_attribute* pli_attr; 
+
+  /* Only used in COBOL language */
+  struct cobol_attr *cob_attr;
 };
 
 #define	NULL_TYPE ((struct type *) 0)

@@ -188,6 +188,9 @@ alloc_type (struct objfile *objfile)
   /* Initialize PL/I attribute */
   TYPE_PLI_ATTR (type) = OBSTACK_ZALLOC (&objfile->objfile_obstack, struct pli_attribute);
 
+  /* Initialize COBOL attribute */
+  TYPE_COB_ATTR (type) = OBSTACK_ZALLOC (&objfile->objfile_obstack, struct cobol_attr);
+
   return type;
 }
 
