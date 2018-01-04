@@ -213,6 +213,7 @@ enum language
     language_ada,		/* Ada */
     language_opencl,		/* OpenCL */
     language_pli,       /* PL/I */
+	language_cobol,		/* for OFCOBOL by sylee "15" */
     language_minimal,		/* All other languages, minimal support only */
     nr_languages
   };

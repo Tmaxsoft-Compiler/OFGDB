@@ -1114,32 +1114,45 @@ print_floating (const gdb_byte *valaddr, struct type *type,
      with 64 bit DOUBLEST.  */
 
   doub = unpack_double (type, valaddr, &inv);
-  if (inv)
-    {
-      fprintf_filtered (stream, "<invalid float value>");
-      return;
-    }
 
-  /* FIXME: kettenis/2001-01-20: The following code makes too much
-     assumptions about the host and target floating point format.  */
+  /* for OFCOBOL COMP1 / COMP2 */
+  const char *val;
+  if (strncmp (TYPE_NAME (type), "COMP1", strlen("COMP1")) == 0) {
+      val = flt_string ( type, valaddr, doub, 1 );
+      fprintf_filtered (stream, "%s", val);
+  }
+  else if (strncmp (TYPE_NAME (type), "COMP2", strlen("COMP2")) == 0) {
+      val = flt_string ( type, valaddr, doub, 2 );
+      fprintf_filtered (stream, "%s", val);
+  }
+  else {
+	  if (inv)
+	  {
+		  fprintf_filtered (stream, "<invalid float value>");
+		  return;
+	  }
 
-  /* NOTE: cagney/2002-02-03: Since the TYPE of what was passed in may
-     not necessarily be a TYPE_CODE_FLT, the below ignores that and
-     instead uses the type's length to determine the precision of the
-     floating-point value being printed.  */
+	  /* FIXME: kettenis/2001-01-20: The following code makes too much
+		 assumptions about the host and target floating point format.  */
 
-  if (len < sizeof (double))
-      fprintf_filtered (stream, "%.9g", (double) doub);
-  else if (len == sizeof (double))
-      fprintf_filtered (stream, "%.17g", (double) doub);
-  else
+	  /* NOTE: cagney/2002-02-03: Since the TYPE of what was passed in may
+		 not necessarily be a TYPE_CODE_FLT, the below ignores that and
+		 instead uses the type's length to determine the precision of the
+		 floating-point value being printed.  */
+
+	  if (len < sizeof (double))
+		  fprintf_filtered (stream, "%.9g", (double) doub);
+	  else if (len == sizeof (double))
+		  fprintf_filtered (stream, "%.17g", (double) doub);
+	  else
 #ifdef PRINTF_HAS_LONG_DOUBLE
-    fprintf_filtered (stream, "%.35Lg", doub);
+		  fprintf_filtered (stream, "%.35Lg", doub);
 #else
-    /* This at least wins with values that are representable as
-       doubles.  */
-    fprintf_filtered (stream, "%.17g", (double) doub);
+	  /* This at least wins with values that are representable as
+		 doubles.  */
+	  fprintf_filtered (stream, "%.17g", (double) doub);
 #endif
+  }
 }
 
 void

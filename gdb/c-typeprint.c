@@ -382,6 +382,13 @@ c_type_print_varspec_prefix (struct type *type,
     case TYPE_CODE_COMPLEX:
     case TYPE_CODE_NAMESPACE:
     case TYPE_CODE_DECFLOAT:
+	/* sylee TODO */
+	case TYPE_CODE_ZONED:
+    case TYPE_CODE_PACKED:
+    case TYPE_CODE_EDITED:
+    case TYPE_CODE_SIGNED_FIXED:
+    case TYPE_CODE_UNSIGNED_FIXED:
+    case TYPE_CODE_DBCS:
       /* These types need no prefix.  They are listed here so that
          gcc -Wall will reveal any types that haven't been handled.  */
       break;
@@ -748,6 +755,13 @@ c_type_print_varspec_suffix (struct type *type,
     case TYPE_CODE_COMPLEX:
     case TYPE_CODE_NAMESPACE:
     case TYPE_CODE_DECFLOAT:
+    /* sylee TODO */
+    case TYPE_CODE_ZONED:
+    case TYPE_CODE_PACKED:
+    case TYPE_CODE_EDITED:
+    case TYPE_CODE_SIGNED_FIXED:
+    case TYPE_CODE_UNSIGNED_FIXED:
+    case TYPE_CODE_DBCS:
       /* These types do not need a suffix.  They are listed so that
          gcc -Wall will report types that may not have been
          considered.  */

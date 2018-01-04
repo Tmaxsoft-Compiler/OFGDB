@@ -14281,6 +14281,49 @@ static struct type* set_pli_attr (struct type* type, const char* name) {
     return type;
 }
 
+/* set additional attributes of COBOL variables */
+static struct type *
+set_cobol_attr2 (struct type *type, char *content, int count)
+{
+    if (count == 1){ /*name*/
+        char *type_name = content;
+    }
+    else if (count == 2){ /*picture string*/
+        TYPE_COB_PIC_STR(type) = content;
+    }
+    else if (count == 3){ /*digit count*/
+        TYPE_COB_DIGIT(type) = atoi(content);
+    }
+    else if (count == 4){ /*decimal scale*/
+        TYPE_COB_SCALE(type) = atoi(content);
+    }
+    else if (count == 5){ /*decimal sign*/
+        TYPE_COB_SIGN(type) = atoi(content);
+    }
+    else if (count == 6){ /*endianity*/
+        TYPE_COB_ENDIAN(type) = atoi(content);
+    }
+
+    return type;
+}
+
+static struct type *
+set_cobol_attr (struct type *type, char *name)
+{
+    int buf_len = strlen(name), count = 1;
+    char *buf = (char*) alloca (buf_len);
+    buf = name;
+
+    char *content = strtok(buf, "!");
+    while (content != NULL) {
+        type = set_cobol_attr2 ( type, content, count );
+        content = strtok(NULL, "!");
+        count++;
+    }
+
+    return type;
+}
+
 /* Find a representation of a given base type and install
    it in the TYPE field of the die.  */
 
@@ -14361,7 +14404,8 @@ read_base_type (struct die_info *die, struct dwarf2_cu *cu)
         case DW_ATE_unsigned_char:
             if (cu->language == language_ada || cu->language == language_m2
                     || cu->language == language_pascal
-                    || cu->language == language_fortran)
+                    || cu->language == language_fortran
+					|| cu->language == language_cobol)
                 code = TYPE_CODE_CHAR;
             else if (cu->language == language_pli) {
                 if (name) {
@@ -14378,15 +14422,28 @@ read_base_type (struct die_info *die, struct dwarf2_cu *cu)
         case DW_ATE_UTF:
             /* We just treat this as an integer and then recognize the
                type by name elsewhere.  */
-            if (cu->language == language_pli)
+            if (cu->language == language_pli ||
+				cu->language == language_cobol)
                 code = TYPE_CODE_DBCS;
             break;
         case DW_ATE_packed_decimal:
             code = TYPE_CODE_PACKED;
             break;
+		case DW_ATE_numeric_string:
+			code = TYPE_CODE_ZONED;
+			break;
         case DW_ATE_edited:
-            code = TYPE_CODE_PICTURE;
+			if (cu->language == language_pli)
+            	code = TYPE_CODE_PICTURE;
+			else if (cu->language == language_cobol)
+				code = TYPE_CODE_EDITED;
             break;
+		case DW_ATE_signed_fixed:
+			code = TYPE_CODE_SIGNED_FIXED;
+			break;
+		case DW_ATE_unsigned_fixed:
+			code = TYPE_CODE_UNSIGNED_FIXED;
+			break;
         default:
             complaint (&symfile_complaints, _("unsupported DW_AT_encoding: '%s'"),
                     dwarf_type_encoding_name (encoding));
@@ -14400,6 +14457,9 @@ read_base_type (struct die_info *die, struct dwarf2_cu *cu)
     /* setting PL/I attribute */
     if (cu->language == language_pli)
         type = set_pli_attr(type, name);
+	/* setting COBOL attribute */
+	if (cu->language == language_cobol)
+		type = set_cobol_attr(type, name);
 
     if (name && strcmp (name, "char") == 0)
         TYPE_NOSIGN (type) = 1;
@@ -14457,6 +14517,10 @@ read_subrange_type (struct die_info *die, struct dwarf2_cu *cu)
     case language_pli:
       low = 1;
       low_default_is_valid = (cu->header.version >= 4);
+      break;
+	case language_cobol:
+	  low = 1;
+      low_default_is_valid = (cu->header.version >= 4); /* check */
       break;
     default:
       low = 0;
@@ -16556,6 +16620,8 @@ set_cu_language (unsigned int lang, struct dwarf2_cu *cu)
       break;
     case DW_LANG_Cobol74:
     case DW_LANG_Cobol85:
+	  cu->language = language_cobol;
+	  break;
     default:
       cu->language = language_minimal;
       break;

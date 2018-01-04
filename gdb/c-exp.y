@@ -2628,7 +2628,8 @@ lex_one_token (int *is_quoted_name)
       }
       /* FALLTHRU */
     case '+':
-    case '-':
+	/* TODO : for COBOL '-' using in name */
+    //case '-':
     case '*':
     case '/':
     case '%':
@@ -2681,7 +2682,8 @@ lex_one_token (int *is_quoted_name)
       }
     }
 
-  if (!(c == '_' || c == '$'
+	/* TODO : for COBOL '-' using in name */
+  if (!(c == '_' || c == '$' || c == '-' 
 	|| (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')))
     /* We must have come across a bad character (e.g. ';').  */
     error (_("Invalid character '%c' in expression."), c);
@@ -2689,7 +2691,8 @@ lex_one_token (int *is_quoted_name)
   /* It's a name.  See how long it is.  */
   namelen = 0;
   for (c = tokstart[namelen];
-       (c == '_' || c == '$' || (c >= '0' && c <= '9')
+	/* TODO : for COBOL '-' using in name */
+       (c == '_' || c == '$' || c == '-' || (c >= '0' && c <= '9')
 	|| (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '<');)
     {
       /* Template parameter lists are part of the name.

@@ -2621,11 +2621,22 @@ unpack_long (struct type *type, const gdb_byte *valaddr)
     case TYPE_CODE_CHAR:
     case TYPE_CODE_RANGE:
     case TYPE_CODE_MEMBERPTR:
+	/* for OFCOBOL */
+    case TYPE_CODE_ZONED:
+    case TYPE_CODE_PACKED:
+    case TYPE_CODE_EDITED:
+    case TYPE_CODE_SIGNED_FIXED:
+    case TYPE_CODE_UNSIGNED_FIXED:
+{
+	/* for OFCOBOL big-endian */
+	if (strncmp(TYPE_NAME (type), "BINARY", strlen("BINARY")) == 0)
+		byte_order = BFD_ENDIAN_BIG;
+
       if (nosign)
 	return extract_unsigned_integer (valaddr, len, byte_order);
       else
 	return extract_signed_integer (valaddr, len, byte_order);
-
+}
     case TYPE_CODE_FLT:
       return extract_typed_floating (valaddr, type);
 
@@ -3239,9 +3250,20 @@ pack_long (gdb_byte *buf, struct type *type, LONGEST num)
     case TYPE_CODE_BOOL:
     case TYPE_CODE_RANGE:
     case TYPE_CODE_MEMBERPTR:
+	/* for OFCOBOL */
+    case TYPE_CODE_ZONED:
+    case TYPE_CODE_PACKED:
+    case TYPE_CODE_EDITED:
+    case TYPE_CODE_SIGNED_FIXED:
+    case TYPE_CODE_UNSIGNED_FIXED:
+{
+	  /* for OFCOBOL big-endian */
+      if (strncmp (TYPE_NAME(type), "BINARY", strlen("BINARY")) == 0)
+            byte_order = BFD_ENDIAN_BIG;
+	
       store_signed_integer (buf, len, byte_order, num);
       break;
-
+}
     case TYPE_CODE_REF:
     case TYPE_CODE_PTR:
       store_typed_address (buf, type, (CORE_ADDR) num);

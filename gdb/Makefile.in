@@ -763,6 +763,7 @@ SFILES = ada-exp.y ada-lang.c ada-typeprint.c ada-valprint.c ada-tasks.c \
 	opencl-lang.c \
 	p-exp.y p-lang.c p-typeprint.c p-valprint.c parse.c printcmd.c \
 	pli-lang.c pli-valprint.c pli-typeprint.c \
+    cobol-lang.c cobol-valprint.c \
 	proc-service.list progspace.c \
 	prologue-value.c psymtab.c \
 	regcache.c reggroups.c remote.c remote-fileio.c remote-notif.c reverse.c \
@@ -844,7 +845,7 @@ rs6000-tdep.h rs6000-aix-tdep.h \
 common/gdb_locale.h arch-utils.h trad-frame.h gnu-nat.h \
 language.h nbsd-tdep.h solib-svr4.h \
 macroexp.h ui-file.h regcache.h tracepoint.h i386-tdep.h \
-inf-child.h p-lang.h pli-lang.h event-top.h gdbtypes.h user-regs.h \
+inf-child.h p-lang.h pli-lang.h cobol-lang.h event-top.h gdbtypes.h user-regs.h \
 regformats/regdef.h config/alpha/nm-osf3.h  config/i386/nm-i386gnu.h \
 config/i386/nm-fbsd.h \
 config/nm-nto.h config/sparc/nm-sol2.h config/nm-linux.h \
@@ -944,7 +945,7 @@ COMMON_OBS = $(DEPFILES) $(CONFIG_OBS) $(YYOBJ) \
 	jv-lang.o jv-valprint.o jv-typeprint.o jv-varobj.o \
 	m2-lang.o opencl-lang.o p-lang.o p-typeprint.o p-valprint.o pli-lang.o pli-valprint.o pli-typeprint.o \
 	sentinel-frame.o \
-	complaints.o typeprint.o \
+	complaints.o typeprint.o cobol-lang.o cobol-valprint.o \
 	ada-typeprint.o c-typeprint.o f-typeprint.o m2-typeprint.o \
 	ada-valprint.o c-valprint.o cp-valprint.o d-valprint.o f-valprint.o \
 	m2-valprint.o \
