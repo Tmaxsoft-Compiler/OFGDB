@@ -794,6 +794,10 @@ handle_sigint (int sig)
      that point, though, the command that we want to interrupt needs to
      finish first, which is unacceptable.  If immediate quit is not set,
      we process SIGINT the next time through the loop, which is fine.  */
+#ifdef _ARC_SPARC
+  /* for OFStudio, interrupt immediately when SIGINT occurs */
+  ++immediate_quit;
+#endif
   gdb_call_async_signal_handler (sigint_token, immediate_quit);
 }
 
