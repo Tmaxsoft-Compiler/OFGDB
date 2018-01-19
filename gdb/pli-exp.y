@@ -1,4 +1,4 @@
-/* YACC parser for C expressions, for GDB.
+/* YACC parser for PL/I expressions, for GDB.
    Copyright (C) 1986-2014 Free Software Foundation, Inc.
 
    This file is part of GDB.
@@ -16,8 +16,9 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-/* Parse a C expression from text in a string,
+/* Parse a PL/I expression from text in a string,
    and return the result as a  struct expression  pointer.
+   (Currently using c-exp.y source code temporarily)
    That structure contains arithmetic operations in reverse polish,
    with constants represented by operations that are followed by special data.
    See expression.h for the details of the format.
@@ -65,52 +66,52 @@
    additional global names that conflict at link time, then those parser
    generators need to be fixed instead of adding those names to this list. */
 
-#define	yymaxdepth c_maxdepth
-#define	yyparse	c_parse_internal
-#define	yylex	c_lex
-#define	yyerror	c_error
-#define	yylval	c_lval
-#define	yychar	c_char
-#define	yydebug	c_debug
-#define	yypact	c_pact	
-#define	yyr1	c_r1			
-#define	yyr2	c_r2			
-#define	yydef	c_def		
-#define	yychk	c_chk		
-#define	yypgo	c_pgo		
-#define	yyact	c_act		
-#define	yyexca	c_exca
-#define yyerrflag c_errflag
-#define yynerrs	c_nerrs
-#define	yyps	c_ps
-#define	yypv	c_pv
-#define	yys	c_s
-#define	yy_yys	c_yys
-#define	yystate	c_state
-#define	yytmp	c_tmp
-#define	yyv	c_v
-#define	yy_yyv	c_yyv
-#define	yyval	c_val
-#define	yylloc	c_lloc
-#define yyreds	c_reds		/* With YYDEBUG defined */
-#define yytoks	c_toks		/* With YYDEBUG defined */
-#define yyname	c_name		/* With YYDEBUG defined */
-#define yyrule	c_rule		/* With YYDEBUG defined */
-#define yylhs	c_yylhs
-#define yylen	c_yylen
-#define yydefred c_yydefred
-#define yydgoto	c_yydgoto
-#define yysindex c_yysindex
-#define yyrindex c_yyrindex
-#define yygindex c_yygindex
-#define yytable	 c_yytable
-#define yycheck	 c_yycheck
-#define yyss	c_yyss
-#define yysslim	c_yysslim
-#define yyssp	c_yyssp
-#define yystacksize c_yystacksize
-#define yyvs	c_yyvs
-#define yyvsp	c_yyvsp
+#define	yymaxdepth pli_maxdepth
+#define	yyparse	pli_parse_internal
+#define	yylex	pli_lex
+#define	yyerror	pli_error
+#define	yylval	pli_lval
+#define	yychar	pli_char
+#define	yydebug	pli_debug
+#define	yypact	pli_pact	
+#define	yyr1	pli_r1			
+#define	yyr2	pli_r2			
+#define	yydef	pli_def		
+#define	yychk	pli_chk		
+#define	yypgo	pli_pgo		
+#define	yyact	pli_act		
+#define	yyexca	pli_exca
+#define yyerrflag pli_errflag
+#define yynerrs	pli_nerrs
+#define	yyps	pli_ps
+#define	yypv	pli_pv
+#define	yys	pli_s
+#define	yy_yys	pli_yys
+#define	yystate	pli_state
+#define	yytmp	pli_tmp
+#define	yyv	pli_v
+#define	yy_yyv	pli_yyv
+#define	yyval	pli_val
+#define	yylloc	pli_lloc
+#define yyreds	pli_reds		/* With YYDEBUG defined */
+#define yytoks	pli_toks		/* With YYDEBUG defined */
+#define yyname	pli_name		/* With YYDEBUG defined */
+#define yyrule	pli_rule		/* With YYDEBUG defined */
+#define yylhs	pli_yylhs
+#define yylen	pli_yylen
+#define yydefred pli_yydefred
+#define yydgoto	pli_yydgoto
+#define yysindex pli_yysindex
+#define yyrindex pli_yyrindex
+#define yygindex pli_yygindex
+#define yytable	 pli_yytable
+#define yycheck	 pli_yycheck
+#define yyss	pli_yyss
+#define yysslim	pli_yysslim
+#define yyssp	pli_yyssp
+#define yystacksize pli_yystacksize
+#define yyvs	pli_yyvs
+#define yyvsp	pli_yyvsp
 
 #ifndef YYDEBUG
 #define	YYDEBUG 1		/* Default to yydebug support */
@@ -169,8 +170,8 @@ static struct stoken operator_stoken (const char *);
 static void check_parameter_typelist (VEC (type_ptr) *);
 static void write_destructor_name (struct stoken);
 
-static void c_print_token (FILE *file, int type, YYSTYPE value);
-#define YYPRINT(FILE, TYPE, VALUE) c_print_token (FILE, TYPE, VALUE)
+static void pli_print_token (FILE *file, int type, YYSTYPE value);
+#define YYPRINT(FILE, TYPE, VALUE) pli_print_token (FILE, TYPE, VALUE)
 %}
 
 %type <voidval> exp exp1 type_exp start variable qualified_name lcurly
@@ -1121,7 +1122,7 @@ ptr_operator_ts: ptr_operator
 			{
 			  $$ = get_type_stack ();
 			  /* This cleanup is eventually run by
-			     c_parse.  */
+			     pli_parse.  */
 			  make_cleanup (type_stack_cleanup, $$);
 			}
 	;
@@ -1585,9 +1586,9 @@ operator:	OPERATOR NEW
 			  long length;
 			  struct ui_file *buf = mem_fileopen ();
 
-			  c_print_type ($2, NULL, buf, -1, 0,
-					&type_print_raw_options);
-			  name = ui_file_xstrdup (buf, &length);
+              pli_print_type ($2, NULL, buf, -1, 0,
+                              &type_print_raw_options);
+              name = ui_file_xstrdup (buf, &length);
 			  ui_file_delete (buf);
 			  $$ = operator_stoken (name);
 			  free (name);
@@ -1661,7 +1662,7 @@ operator_stoken (const char *op)
   strcat (buf, op);
   st.ptr = buf;
 
-  /* The toplevel (c_parse) will free the memory allocated here.  */
+  /* The toplevel (pli_parse) will free the memory allocated here.  */
   make_cleanup (free, buf);
   return st;
 };
@@ -1940,7 +1941,7 @@ parse_number (const char *buf, int len, int parsed_float, YYSTYPE *putithere)
 static struct obstack tempbuf;
 static int tempbuf_init;
 
-/* Parse a C escape sequence.  The initial backslash of the sequence
+/* Parse a PL/I escape sequence.  The initial backslash of the sequence
    is at (*PTR)[-1].  *PTR will be updated to point to just after the
    last character of the sequence.  If OUTPUT is not NULL, the
    translated form of the escape sequence will be written there.  If
@@ -1950,7 +1951,7 @@ static int tempbuf_init;
    character was emitted, 0 otherwise.  */
 
 int
-c_parse_escape (const char **ptr, struct obstack *output)
+pli_parse_escape (const char **ptr, struct obstack *output)
 {
   const char *tokptr = *ptr;
   int result = 1;
@@ -2173,7 +2174,7 @@ parse_string_or_char (const char *tokptr, const char **outptr,
       if (c == '\\')
 	{
 	  ++tokptr;
-	  *host_chars += c_parse_escape (&tokptr, &tempbuf);
+	  *host_chars += pli_parse_escape (&tokptr, &tempbuf);
 	}
       else if (c == quote)
 	break;
@@ -2810,7 +2811,7 @@ static VEC (token_and_value) *token_fifo;
 /* Non-zero if the lexer should return tokens from the FIFO.  */
 static int popping;
 
-/* Temporary storage for c_lex; this holds symbol names as they are
+/* Temporary storage for pli_lex; this holds symbol names as they are
    built up.  */
 static struct obstack name_obstack;
 
@@ -3162,7 +3163,7 @@ yylex (void)
 }
 
 int
-c_parse (void)
+pli_parse (void)
 {
   int result;
   struct cleanup *back_to = make_cleanup (free_current_contents,
@@ -3205,7 +3206,7 @@ c_parse (void)
    enabled.  It prints a token's value.  */
 
 static void
-c_print_token (FILE *file, int type, YYSTYPE value)
+pli_print_token (FILE *file, int type, YYSTYPE value)
 {
   switch (type)
     {

@@ -341,7 +341,7 @@ const struct language_defn pli_language_defn =
     array_row_major,
     macro_expansion_c,
     &exp_descriptor_pli,
-    c_parse, /* #TODO: need to implement pli_parse */
+    pli_parse, /* #TODO: need to implement pli_parse */
     c_error, /* #TODO: need to implement pli_error */
     null_post_parser,
     pli_printchar,       /* Print a character constant */

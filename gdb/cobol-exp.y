@@ -1,4 +1,4 @@
-/* YACC parser for C expressions, for GDB.
+/* YACC parser for COBOL expressions, for GDB.
    Copyright (C) 1986-2014 Free Software Foundation, Inc.
 
    This file is part of GDB.
@@ -16,8 +16,9 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-/* Parse a C expression from text in a string,
+/* Parse a COBOL expression from text in a string,
    and return the result as a  struct expression  pointer.
+   (Currently using c-exp.y source code temporarily)
    That structure contains arithmetic operations in reverse polish,
    with constants represented by operations that are followed by special data.
    See expression.h for the details of the format.
@@ -65,52 +66,52 @@
    additional global names that conflict at link time, then those parser
    generators need to be fixed instead of adding those names to this list. */
 
-#define	yymaxdepth c_maxdepth
-#define	yyparse	c_parse_internal
-#define	yylex	c_lex
-#define	yyerror	c_error
-#define	yylval	c_lval
-#define	yychar	c_char
-#define	yydebug	c_debug
-#define	yypact	c_pact	
-#define	yyr1	c_r1			
-#define	yyr2	c_r2			
-#define	yydef	c_def		
-#define	yychk	c_chk		
-#define	yypgo	c_pgo		
-#define	yyact	c_act		
-#define	yyexca	c_exca
-#define yyerrflag c_errflag
-#define yynerrs	c_nerrs
-#define	yyps	c_ps
-#define	yypv	c_pv
-#define	yys	c_s
-#define	yy_yys	c_yys
-#define	yystate	c_state
-#define	yytmp	c_tmp
-#define	yyv	c_v
-#define	yy_yyv	c_yyv
-#define	yyval	c_val
-#define	yylloc	c_lloc
-#define yyreds	c_reds		/* With YYDEBUG defined */
-#define yytoks	c_toks		/* With YYDEBUG defined */
-#define yyname	c_name		/* With YYDEBUG defined */
-#define yyrule	c_rule		/* With YYDEBUG defined */
-#define yylhs	c_yylhs
-#define yylen	c_yylen
-#define yydefred c_yydefred
-#define yydgoto	c_yydgoto
-#define yysindex c_yysindex
-#define yyrindex c_yyrindex
-#define yygindex c_yygindex
-#define yytable	 c_yytable
-#define yycheck	 c_yycheck
-#define yyss	c_yyss
-#define yysslim	c_yysslim
-#define yyssp	c_yyssp
-#define yystacksize c_yystacksize
-#define yyvs	c_yyvs
-#define yyvsp	c_yyvsp
+#define	yymaxdepth cobol_maxdepth
+#define	yyparse	cobol_parse_internal
+#define	yylex	cobol_lex
+#define	yyerror	cobol_error
+#define	yylval	cobol_lval
+#define	yychar	cobol_char
+#define	yydebug	cobol_debug
+#define	yypact	cobol_pact	
+#define	yyr1	cobol_r1			
+#define	yyr2	cobol_r2			
+#define	yydef	cobol_def		
+#define	yychk	cobol_chk		
+#define	yypgo	cobol_pgo		
+#define	yyact	cobol_act		
+#define	yyexca	cobol_exca
+#define yyerrflag cobol_errflag
+#define yynerrs	cobol_nerrs
+#define	yyps	cobol_ps
+#define	yypv	cobol_pv
+#define	yys	cobol_s
+#define	yy_yys	cobol_yys
+#define	yystate	cobol_state
+#define	yytmp	cobol_tmp
+#define	yyv	cobol_v
+#define	yy_yyv	cobol_yyv
+#define	yyval	cobol_val
+#define	yylloc	cobol_lloc
+#define yyreds	cobol_reds		/* With YYDEBUG defined */
+#define yytoks	cobol_toks		/* With YYDEBUG defined */
+#define yyname	cobol_name		/* With YYDEBUG defined */
+#define yyrule	cobol_rule		/* With YYDEBUG defined */
+#define yylhs	cobol_yylhs
+#define yylen	cobol_yylen
+#define yydefred cobol_yydefred
+#define yydgoto	cobol_yydgoto
+#define yysindex cobol_yysindex
+#define yyrindex cobol_yyrindex
+#define yygindex cobol_yygindex
+#define yytable	 cobol_yytable
+#define yycheck	 cobol_yycheck
+#define yyss	cobol_yyss
+#define yysslim	cobol_yysslim
+#define yyssp	cobol_yyssp
+#define yystacksize cobol_yystacksize
+#define yyvs	cobol_yyvs
+#define yyvsp	cobol_yyvsp
 
 #ifndef YYDEBUG
 #define	YYDEBUG 1		/* Default to yydebug support */
@@ -169,8 +170,8 @@ static struct stoken operator_stoken (const char *);
 static void check_parameter_typelist (VEC (type_ptr) *);
 static void write_destructor_name (struct stoken);
 
-static void c_print_token (FILE *file, int type, YYSTYPE value);
-#define YYPRINT(FILE, TYPE, VALUE) c_print_token (FILE, TYPE, VALUE)
+static void cobol_print_token (FILE *file, int type, YYSTYPE value);
+#define YYPRINT(FILE, TYPE, VALUE) cobol_print_token (FILE, TYPE, VALUE)
 %}
 
 %type <voidval> exp exp1 type_exp start variable qualified_name lcurly
@@ -1121,7 +1122,7 @@ ptr_operator_ts: ptr_operator
 			{
 			  $$ = get_type_stack ();
 			  /* This cleanup is eventually run by
-			     c_parse.  */
+			     cobol_parse.  */
 			  make_cleanup (type_stack_cleanup, $$);
 			}
 	;
@@ -1585,7 +1586,7 @@ operator:	OPERATOR NEW
 			  long length;
 			  struct ui_file *buf = mem_fileopen ();
 
-			  c_print_type ($2, NULL, buf, -1, 0,
+			  cobol_print_type ($2, NULL, buf, -1, 0,
 					&type_print_raw_options);
 			  name = ui_file_xstrdup (buf, &length);
 			  ui_file_delete (buf);
@@ -1661,7 +1662,7 @@ operator_stoken (const char *op)
   strcat (buf, op);
   st.ptr = buf;
 
-  /* The toplevel (c_parse) will free the memory allocated here.  */
+  /* The toplevel (cobol_parse) will free the memory allocated here.  */
   make_cleanup (free, buf);
   return st;
 };
@@ -1940,7 +1941,7 @@ parse_number (const char *buf, int len, int parsed_float, YYSTYPE *putithere)
 static struct obstack tempbuf;
 static int tempbuf_init;
 
-/* Parse a C escape sequence.  The initial backslash of the sequence
+/* Parse a COBOL escape sequence.  The initial backslash of the sequence
    is at (*PTR)[-1].  *PTR will be updated to point to just after the
    last character of the sequence.  If OUTPUT is not NULL, the
    translated form of the escape sequence will be written there.  If
@@ -1950,7 +1951,7 @@ static int tempbuf_init;
    character was emitted, 0 otherwise.  */
 
 int
-c_parse_escape (const char **ptr, struct obstack *output)
+cobol_parse_escape (const char **ptr, struct obstack *output)
 {
   const char *tokptr = *ptr;
   int result = 1;
@@ -2173,7 +2174,7 @@ parse_string_or_char (const char *tokptr, const char **outptr,
       if (c == '\\')
 	{
 	  ++tokptr;
-	  *host_chars += c_parse_escape (&tokptr, &tempbuf);
+	  *host_chars += cobol_parse_escape (&tokptr, &tempbuf);
 	}
       else if (c == quote)
 	break;
@@ -2628,7 +2629,8 @@ lex_one_token (int *is_quoted_name)
       }
       /* FALLTHRU */
     case '+':
-    case '-':
+	/* TODO : for COBOL '-' using in name */
+    //case '-':
     case '*':
     case '/':
     case '%':
@@ -2681,7 +2683,8 @@ lex_one_token (int *is_quoted_name)
       }
     }
 
-  if (!(c == '_' || c == '$'
+	/* TODO : for COBOL '-' using in name */
+  if (!(c == '_' || c == '$' || c == '-' 
 	|| (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')))
     /* We must have come across a bad character (e.g. ';').  */
     error (_("Invalid character '%c' in expression."), c);
@@ -2689,7 +2692,8 @@ lex_one_token (int *is_quoted_name)
   /* It's a name.  See how long it is.  */
   namelen = 0;
   for (c = tokstart[namelen];
-       (c == '_' || c == '$' || (c >= '0' && c <= '9')
+	/* TODO : for COBOL '-' using in name */
+       (c == '_' || c == '$' || c == '-' || (c >= '0' && c <= '9')
 	|| (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '<');)
     {
       /* Template parameter lists are part of the name.
@@ -2810,7 +2814,7 @@ static VEC (token_and_value) *token_fifo;
 /* Non-zero if the lexer should return tokens from the FIFO.  */
 static int popping;
 
-/* Temporary storage for c_lex; this holds symbol names as they are
+/* Temporary storage for cobol_lex; this holds symbol names as they are
    built up.  */
 static struct obstack name_obstack;
 
@@ -3162,7 +3166,7 @@ yylex (void)
 }
 
 int
-c_parse (void)
+cobol_parse (void)
 {
   int result;
   struct cleanup *back_to = make_cleanup (free_current_contents,
@@ -3205,7 +3209,7 @@ c_parse (void)
    enabled.  It prints a token's value.  */
 
 static void
-c_print_token (FILE *file, int type, YYSTYPE value)
+cobol_print_token (FILE *file, int type, YYSTYPE value)
 {
   switch (type)
     {

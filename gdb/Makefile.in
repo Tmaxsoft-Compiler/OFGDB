@@ -762,8 +762,8 @@ SFILES = ada-exp.y ada-lang.c ada-typeprint.c ada-valprint.c ada-tasks.c \
 	objfiles.c osabi.c observer.c osdata.c \
 	opencl-lang.c \
 	p-exp.y p-lang.c p-typeprint.c p-valprint.c parse.c printcmd.c \
-	pli-lang.c pli-valprint.c pli-typeprint.c \
-    cobol-lang.c cobol-valprint.c \
+	pli-exp.y pli-lang.c pli-valprint.c pli-typeprint.c \
+    cobol-exp.y cobol-lang.c cobol-valprint.c \
 	proc-service.list progspace.c \
 	prologue-value.c psymtab.c \
 	regcache.c reggroups.c remote.c remote-fileio.c remote-notif.c reverse.c \
@@ -983,14 +983,18 @@ REQUIRED_SUBDIRS = doc | testsuite | $(GNULIB_BUILDDIR) | data-directory
 # For now, shortcut the "configure GDB for fewer languages" stuff.
 YYFILES = c-exp.c \
 	cp-name-parser.c \
+	cobol-exp.c \
 	ada-lex.c \
 	ada-exp.c \
 	jv-exp.c \
+	pli-exp.c \
 	f-exp.c go-exp.c m2-exp.c p-exp.c
 YYOBJ = c-exp.o \
 	cp-name-parser.o \
+	cobol-exp.o \
 	ada-exp.o \
 	jv-exp.o \
+	pli-exp.o \
 	f-exp.o go-exp.o m2-exp.o p-exp.o
 
 # Things which need to be built when making a distribution.
@@ -1320,8 +1324,10 @@ local-maintainer-clean:
 	@echo "it deletes files that may require special tools to rebuild."
 	rm -f c-exp.c \
 		cp-name-parser.c \
+		cobol-exp.c \
 		ada-lex.c ada-exp.c \
 		jv-exp.tab \
+		pli-exp.c\
 		f-exp.c go-exp.c m2-exp.c p-exp.c
 	rm -f TAGS $(INFOFILES)
 	rm -f $(YYFILES)
