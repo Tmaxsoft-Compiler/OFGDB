@@ -174,7 +174,7 @@ static void pli_print_token (FILE *file, int type, YYSTYPE value);
 #define YYPRINT(FILE, TYPE, VALUE) pli_print_token (FILE, TYPE, VALUE)
 %}
 
-%type <voidval> exp exp1 type_exp start variable qualified_name lcurly
+%type <voidval> exp exp1 type_exp start variable lcurly
 %type <lval> rcurly
 %type <tval> type typebase
 %type <tvec> nonempty_typelist func_mod parameter_typelist
@@ -244,10 +244,6 @@ static void pli_print_token (FILE *file, int type, YYSTYPE value);
 %token <sval> VARIABLE
 
 %token <opcode> ASSIGN_MODIFY
-
-/* C++ */
-%token TRUEKEYWORD
-%token FALSEKEYWORD
 
 
 %left ','
@@ -396,14 +392,6 @@ exp        :        exp ARROW '~' name COMPLETE
                           write_exp_elt_opcode (STRUCTOP_PTR); }
         ;
 
-exp        :        exp ARROW qualified_name
-                        { /* exp->type::name becomes exp->*(&type::name) */
-                          /* Note: this doesn't work if name is a
-                             static member!  FIXME */
-                          write_exp_elt_opcode (UNOP_ADDR);
-                          write_exp_elt_opcode (STRUCTOP_MPTR); }
-        ;
-
 exp        :        exp ARROW_STAR exp
                         { write_exp_elt_opcode (STRUCTOP_MPTR); }
         ;
@@ -442,14 +430,6 @@ exp        :        exp '.' '~' name COMPLETE
                           write_exp_elt_opcode (STRUCTOP_STRUCT);
                           write_destructor_name ($4);
                           write_exp_elt_opcode (STRUCTOP_STRUCT); }
-        ;
-
-exp        :        exp '.' qualified_name
-                        { /* exp.type::name becomes exp.*(&type::name) */
-                          /* Note: this doesn't work if name is a
-                             static member!  FIXME */
-                          write_exp_elt_opcode (UNOP_ADDR);
-                          write_exp_elt_opcode (STRUCTOP_MEMBER); }
         ;
 
 exp        :        exp DOT_STAR exp
@@ -874,23 +854,6 @@ exp     :        NSSTRING        /* ObjC NextStep NSString constant
                           write_exp_elt_opcode (OP_OBJC_NSSTRING); }
         ;
 
-/* C++.  */
-exp     :       TRUEKEYWORD    
-                        { write_exp_elt_opcode (OP_LONG);
-                          write_exp_elt_type (parse_type->builtin_bool);
-                          write_exp_elt_longcst ((LONGEST) 1);
-                          write_exp_elt_opcode (OP_LONG); }
-        ;
-
-exp     :       FALSEKEYWORD   
-                        { write_exp_elt_opcode (OP_LONG);
-                          write_exp_elt_type (parse_type->builtin_bool);
-                          write_exp_elt_longcst ((LONGEST) 0);
-                          write_exp_elt_opcode (OP_LONG); }
-        ;
-
-/* end of C++.  */
-
 block        :        BLOCKNAME
                         {
                           if ($1.sym)
@@ -950,85 +913,6 @@ variable:        block COLONCOLON name
                           write_exp_elt_block (block_found);
                           write_exp_elt_sym (sym);
                           write_exp_elt_opcode (OP_VAR_VALUE); }
-        ;
-
-qualified_name:        TYPENAME COLONCOLON name
-                        {
-                          struct type *type = $1.type;
-                          CHECK_TYPEDEF (type);
-                          if (TYPE_CODE (type) != TYPE_CODE_STRUCT
-                              && TYPE_CODE (type) != TYPE_CODE_UNION
-                              && TYPE_CODE (type) != TYPE_CODE_NAMESPACE)
-                            error (_("`%s' is not defined as an aggregate type."),
-                                   TYPE_SAFE_NAME (type));
-
-                          write_exp_elt_opcode (OP_SCOPE);
-                          write_exp_elt_type (type);
-                          write_exp_string ($3);
-                          write_exp_elt_opcode (OP_SCOPE);
-                        }
-        |        TYPENAME COLONCOLON '~' name
-                        {
-                          struct type *type = $1.type;
-                          struct stoken tmp_token;
-                          char *buf;
-
-                          CHECK_TYPEDEF (type);
-                          if (TYPE_CODE (type) != TYPE_CODE_STRUCT
-                              && TYPE_CODE (type) != TYPE_CODE_UNION
-                              && TYPE_CODE (type) != TYPE_CODE_NAMESPACE)
-                            error (_("`%s' is not defined as an aggregate type."),
-                                   TYPE_SAFE_NAME (type));
-                          buf = alloca ($4.length + 2);
-                          tmp_token.ptr = buf;
-                          tmp_token.length = $4.length + 1;
-                          buf[0] = '~';
-                          memcpy (buf+1, $4.ptr, $4.length);
-                          buf[tmp_token.length] = 0;
-
-                          /* Check for valid destructor name.  */
-                          destructor_name_p (tmp_token.ptr, $1.type);
-                          write_exp_elt_opcode (OP_SCOPE);
-                          write_exp_elt_type (type);
-                          write_exp_string (tmp_token);
-                          write_exp_elt_opcode (OP_SCOPE);
-                        }
-        |        TYPENAME COLONCOLON name COLONCOLON name
-                        {
-                          char *copy = copy_name ($3);
-                          error (_("No type \"%s\" within class "
-                                   "or namespace \"%s\"."),
-                                 copy, TYPE_SAFE_NAME ($1.type));
-                        }
-        ;
-
-variable:        qualified_name
-        |        COLONCOLON name_not_typename
-                        {
-                          char *name = copy_name ($2.stoken);
-                          struct symbol *sym;
-                          struct bound_minimal_symbol msymbol;
-
-                          sym =
-                            lookup_symbol (name, (const struct block *) NULL,
-                                           VAR_DOMAIN, NULL);
-                          if (sym)
-                            {
-                              write_exp_elt_opcode (OP_VAR_VALUE);
-                              write_exp_elt_block (NULL);
-                              write_exp_elt_sym (sym);
-                              write_exp_elt_opcode (OP_VAR_VALUE);
-                              break;
-                            }
-
-                          msymbol = lookup_bound_minimal_symbol (name);
-                          if (msymbol.minsym != NULL)
-                            write_exp_msymbol (msymbol);
-                          else if (!have_full_symbols () && !have_partial_symbols ())
-                            error (_("No symbol table is loaded.  Use the \"file\" command."));
-                          else
-                            warning (_("No symbol \"%s\" in current context."), name);
-                        }
         ;
 
 variable:        name_not_typename
@@ -2275,14 +2159,12 @@ static const struct token ident_tokens[] =
     {"signed", SIGNED_KEYWORD, OP_NULL, 0},
     {"sizeof", SIZEOF, OP_NULL, 0},
     {"double", DOUBLE_KEYWORD, OP_NULL, 0},
-    {"false", FALSEKEYWORD, OP_NULL, FLAG_CXX},
     {"class", CLASS, OP_NULL, FLAG_CXX},
     {"union", UNION, OP_NULL, 0},
     {"short", SHORT, OP_NULL, 0},
     {"const", CONST_KEYWORD, OP_NULL, 0},
     {"enum", ENUM, OP_NULL, 0},
     {"long", LONG, OP_NULL, 0},
-    {"true", TRUEKEYWORD, OP_NULL, FLAG_CXX},
     {"int", INT_KEYWORD, OP_NULL, 0},
     {"new", NEW, OP_NULL, FLAG_CXX},
     {"delete", DELETE, OP_NULL, FLAG_CXX},
