@@ -52,6 +52,7 @@
 #include "ctf.h"
 #include "ada-lang.h"
 #include "linespec.h"
+#include "parser-defs.h"
 #ifdef HAVE_PYTHON
 #include "python/python-internal.h"
 #endif
@@ -1330,6 +1331,51 @@ mi_cmd_data_evaluate_expression (char *command, char **argv, int argc)
   common_val_print (val, stb, 0, &opts, current_language);
 
   ui_out_field_stream (uiout, "value", stb);
+
+  do_cleanups (old_chain);
+}
+
+/* Evaluate each value of the argument from a variable list
+   The argument is an list of variable */
+void
+mi_cmd_print_variable_list (char *command, char **argv, int argc)
+{
+  struct expression *expr;
+  struct cleanup *old_chain;
+  struct value *val;
+  struct ui_file *stb;
+  struct value_print_options opts;
+  struct ui_out *uiout = current_uiout;
+  int exp_idx = 0;
+
+  stb = mem_fileopen ();
+  old_chain = make_cleanup_ui_file_delete (stb);
+
+  if (argc < 1)
+    error (_("-print-variable-list: "
+             "Usage: -print-variable-list expression1 expression2 ... expressionN"));
+
+  for ( ; exp_idx < argc; exp_idx++) {
+    /* find a symbol from the symbol table */
+    struct symbol *sym;
+    sym = lookup_symbol (argv[exp_idx], get_selected_block(&expression_context_pc), VAR_DOMAIN, NULL);
+
+    /* evaluate & print value of variables that is found in the symbol table */
+    if (sym != NULL) {
+        expr = parse_expression (argv[exp_idx]);
+
+        make_cleanup (free_current_contents, &expr);
+
+        val = evaluate_expression (expr);
+
+        /* Print the result of the expression evaluation.  */
+        get_user_print_options (&opts);
+        opts.deref_ref = 0;
+        common_val_print (val, stb, 0, &opts, current_language);
+
+        ui_out_field_stream (uiout, argv[exp_idx], stb);
+    }
+  }
 
   do_cleanups (old_chain);
 }
