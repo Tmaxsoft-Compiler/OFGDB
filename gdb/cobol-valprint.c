@@ -1903,10 +1903,10 @@ cobol_assign_to_edited (struct type *toType, struct type *fromType, struct value
 
     code1 = TYPE_CODE (toType);
     code2 = TYPE_CODE (fromType);
-    printf("[sylee debug]assign_to_edited: buf[%s]\n", buf);
+    //printf("[sylee debug]assign_to_edited: buf[%s]\n", buf);
 
-    printf("[sylee debug][to] digit:%d/scale:%d [from]digit:%d/scale:%d\n", 
-            toDigit, toScale, fromDigit, fromScale);
+    //printf("[sylee debug][to] digit:%d/scale:%d [from]digit:%d/scale:%d\n", 
+    //        toDigit, toScale, fromDigit, fromScale);
 
     src_len = strlen(buf);
     for (ix=0; ix<src_len; ix++) {
@@ -1918,11 +1918,11 @@ cobol_assign_to_edited (struct type *toType, struct type *fromType, struct value
     strcpy (pic, TYPE_COB_PIC_STR(toType));
     pic_len = toDigit;
 
-    printf("pic:[%s] pic_len:[%d]/ src:[%s] src_len:[%d]\n", pic, pic_len, buf, src_len);
+    //printf("pic:[%s] pic_len:[%d]/ src:[%s] src_len:[%d]\n", pic, pic_len, buf, src_len);
 
     memset(modified_buf, 0x00, 4096);
     cobol_extend_picture (&pic, pic_len);
-    printf("pic:[%s]\n", pic);
+    //printf("pic:[%s]\n", pic);
 
     for (pic_idx=0; pic_idx < pic_len; pic_idx++) {
         if (pic[pic_idx] == '0' || pic[pic_idx] == ',' ||
@@ -2000,7 +2000,7 @@ cobol_assign_to_edited (struct type *toType, struct type *fromType, struct value
                 from_pic_digit--;
         }
 
-        printf("from pic digit:%d\n", from_pic_digit);
+        //printf("from pic digit:%d\n", from_pic_digit);
 
         for (ix = 0; ix < src_len; ix++) {
             if (buf[ix] == '+' || buf[ix] == '-') {
@@ -2055,7 +2055,7 @@ cobol_assign_to_edited (struct type *toType, struct type *fromType, struct value
     }
 
     tmp_buf[pic_digit] = 0x00;
-    printf("tmp_buf:[%s]\n", tmp_buf);
+    //printf("tmp_buf:[%s]\n", tmp_buf);
 
     pic_idx = 0;
     tmp_idx = 0;
@@ -2139,7 +2139,7 @@ cobol_assign_to_edited (struct type *toType, struct type *fromType, struct value
         }
     }
     target_buf[target_idx] = 0x00;
-    printf("target_buf:[%s]\n", target_buf);
+    //printf("target_buf:[%s]\n", target_buf);
 
     for (ix = 0; ix < target_idx; ix++) {
         switch (target_buf[ix]){
@@ -2232,7 +2232,7 @@ cobol_assign_to_edited (struct type *toType, struct type *fromType, struct value
         target_idx += 2;
     }
 
-    printf("last target_buf:[%s]\n", target_buf);
+    //printf("last target_buf:[%s]\n", target_buf);
     memcpy( toBuf, target_buf, target_idx );
 
     return value_from_contents_and_address(toType, toBuf, value_address(from));
