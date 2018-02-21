@@ -1,6 +1,6 @@
 /* Support for printing COBOL values for GDB, the GNU debugger.
 
-   Copyright (C) 1986, 1988-1989, 1991-2001, 2003, 2005-2012 Free
+   Copyright (C) 1986-2014 Free Software Foundation, Inc.
    Software Foundation, Inc.
 
    This file is part of GDB.
@@ -19,7 +19,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
-/*#include "gdb_string.h"*/
+#include <string.h>
 #include "symtab.h"
 #include "gdbtypes.h"
 #include "gdbcore.h"
@@ -32,7 +32,6 @@
 #include "target.h"
 #include "cobol-lang.h"
 #include <math.h>
-#include <string.h>
 
 
 /* Temporary storage using circular buffer.  */
@@ -47,9 +46,16 @@ get_cell (void)
   return buf[cell];
 }
 
+char *ptr_string (struct type *type, const gdb_byte *val, CORE_ADDR address);
+char *zoned_string (struct type *type, const gdb_byte *val);
+char *packed_string (struct type *type, const gdb_byte *val);
+char *fixed_string (struct type *type, const gdb_byte *val);
+char *flt_string (struct type *type, const gdb_byte *val, DOUBLEST doub, int comp);
 
-char *cobol_conv_numeric_to_int (struct type *fromType, struct value* from, enum type_code code, int *is_sign);
-char *cobol_conv_flt_to_int (struct type *fromType, DOUBLEST doublest);
+struct value *value_cast_cobol (struct type *type, struct value *arg2);
+
+char* cobol_conv_numeric_to_int (struct type *fromType, struct value* from, enum type_code code, int *is_sign);
+char* cobol_conv_flt_to_int (struct type *fromType, DOUBLEST doublest);
 struct value *cobol_assign_to_numeric (struct type *toType, struct type *fromType, struct value *from, char* buf, int is_sign );
 struct value *cobol_assign_to_binary (struct type *toType, struct type *fromType, struct value *from, char* buf, int is_sign, int is_comp5);
 struct value *cobol_assign_to_packed (struct type *toType, struct type *fromType, struct value *from, char* buf, int is_sign );
@@ -58,6 +64,16 @@ struct value *cobol_assign_to_flt (struct type *toType, struct type *fromType, s
 struct value *cobol_assign_to_edited (struct type *toType, struct type *fromType, struct value *from, char* buf );
 struct value *cobol_assign_to_alpha_edited (struct type *toType, struct type *fromType, struct value *from, char* pic, char* buf );
 void cobol_extend_picture (char *ogn_pic, int digit);
+
+
+void val_print_type_code_ptr (struct type *type, const gdb_byte *valaddr, struct ui_file *stream, CORE_ADDR address);
+void val_print_alpha_string (struct ui_file *stream, const gdb_byte *valaddr, CORE_ADDR address, struct type *type);
+void val_print_type_code_zoned (struct type *type, const gdb_byte *valaddr, struct ui_file *stream, CORE_ADDR address);
+void val_print_type_code_packed (struct type *type, const gdb_byte *valaddr, struct ui_file *stream, CORE_ADDR address);
+void val_print_type_code_edited (struct type *type, const gdb_byte *valaddr, struct ui_file *stream, CORE_ADDR address);
+void val_print_type_code_fixed (struct type *type, const gdb_byte *valaddr, struct ui_file *stream, CORE_ADDR address)
+;
+
 
 /* for cobol */
     const long long cobexp10LL[19] = {
@@ -103,29 +119,6 @@ void cobol_extend_picture (char *ogn_pic, int digit);
         100000000000000000ULL,
         1000000000000000000ULL
     };
-#if 0
-/* TODO check */
-static void
-print_function_pointer_address (struct gdbarch *gdbarch,
-                CORE_ADDR address,
-                struct ui_file *stream,
-                int addressprint)
-{
-  CORE_ADDR func_addr
-    = gdbarch_convert_from_func_ptr_addr (gdbarch, address,
-                      &current_target);
-
-  /* If the function pointer is represented by a description, print
-     the address of the description.  */
-  if (addressprint && func_addr != address)
-    {
-      fputs_filtered ("@", stream);
-      fputs_filtered (paddress (gdbarch, address), stream);
-      fputs_filtered (": ", stream);
-    }
-  print_address_demangle (gdbarch, func_addr, stream, demangle);
-}
-#endif
 
 void
 cobol_val_print (struct type *type, const gdb_byte *valaddr,
@@ -141,11 +134,9 @@ cobol_val_print (struct type *type, const gdb_byte *valaddr,
   struct type *elttype, *unresolved_elttype;
   struct type *unresolved_type = type;
   unsigned eltlen;
-  LONGEST val;
   CORE_ADDR addr;
 
   CHECK_TYPEDEF (type);
-
   switch (TYPE_CODE (type))
     {
     case TYPE_CODE_ARRAY:
@@ -175,6 +166,8 @@ cobol_val_print (struct type *type, const gdb_byte *valaddr,
 				   TARGET_CHAR_BIT * embedded_offset,
 				   TARGET_CHAR_BIT * TYPE_LENGTH (type)))
 	    {
+	      int force_ellipses = 0;
+
 	      /* If requested, look for the first null char and only
 	         print elements up to it.  */
 	      if (options->stop_print_at_null)
@@ -189,6 +182,20 @@ cobol_val_print (struct type *type, const gdb_byte *valaddr,
 						     eltlen, byte_order) != 0);
 		       ++temp_len)
 		    ;
+
+		  /* Force LA_PRINT_STRING to print ellipses if
+		     we've printed the maximum characters and
+		     the next character is not \000.  */
+		  if (temp_len == options->print_max && temp_len < len)
+		    {
+		      ULONGEST val
+			= extract_unsigned_integer (valaddr + embedded_offset
+						    + temp_len * eltlen,
+						    eltlen, byte_order);
+		      if (val != 0)
+			force_ellipses = 1;
+		    }
+
 		  len = temp_len;
 		}
 
@@ -241,36 +248,20 @@ cobol_val_print (struct type *type, const gdb_byte *valaddr,
 	  CORE_ADDR addr
 	    = extract_typed_address (valaddr + embedded_offset, type);
 
-	  print_function_pointer_address (gdbarch, addr, stream,
-					  options->addressprint);
+	  print_function_pointer_address (options, gdbarch, addr, stream);
 	  break;
 	}
       unresolved_elttype = TYPE_TARGET_TYPE (type);
       elttype = check_typedef (unresolved_elttype);
 	{
+      int want_space;
+
 	  addr = unpack_pointer (type, valaddr + embedded_offset);
-      /* sylee test */
       val_print_type_code_ptr(type, valaddr + embedded_offset, stream, addr);
       fprintf_filtered (stream, " / ");
 
-      int want_space;
 	print_unpacked_pointer:
 	  want_space = 0;
-#if 0
-/* TODO : 7.4 -> 7.7 */
-	  if (TYPE_CODE (elttype) == TYPE_CODE_FUNC)
-	    {
-	      /* Try to print what function it points to.  */
-	      print_function_pointer_address (gdbarch, addr, stream,
-					      options->addressprint);
-	      /* Return value is irrelevant except for string
-		 pointers.  */
-	      return (0);
-	    }
-
-	  if (options->addressprint) /* sylee test : original */
-	    fputs_filtered (paddress (gdbarch, addr), stream);
-#endif
 
 	  if (TYPE_CODE (elttype) == TYPE_CODE_FUNC)
 	    {
@@ -290,72 +281,6 @@ cobol_val_print (struct type *type, const gdb_byte *valaddr,
 
 	  /* For a pointer to a textual type, also print the string
 	     pointed to, unless pointer is null.  */
-#if 0
-/* TODO : 7.4->7.7 */
-	  if (c_textual_element_type (unresolved_elttype,
-				      options->format)
-	      && addr != 0)
-	    {
-	      i = val_print_string (unresolved_elttype, NULL,
-				    addr, -1,
-				    stream, options);
-	    }
-	  else if (cp_is_vtbl_member (type))
-	    {
-	      /* Print vtbl's nicely.  */
-	      CORE_ADDR vt_address = unpack_pointer (type,
-						     valaddr
-						     + embedded_offset);
-
-	      struct minimal_symbol *msymbol =
-	      lookup_minimal_symbol_by_pc (vt_address);
-	      if ((msymbol != NULL)
-		  && (vt_address == SYMBOL_VALUE_ADDRESS (msymbol)))
-		{
-		  fputs_filtered (" <", stream);
-		  fputs_filtered (SYMBOL_PRINT_NAME (msymbol), stream);
-		  fputs_filtered (">", stream);
-		}
-	      if (vt_address && options->vtblprint)
-		{
-		  struct value *vt_val;
-		  struct symbol *wsym = (struct symbol *) NULL;
-		  struct type *wtype;
-		  struct block *block = (struct block *) NULL;
-		  int is_this_fld;
-
-		  if (msymbol != NULL)
-		    wsym = lookup_symbol (SYMBOL_LINKAGE_NAME (msymbol),
-					  block, VAR_DOMAIN,
-					  &is_this_fld);
-
-		  if (wsym)
-		    {
-		      wtype = SYMBOL_TYPE (wsym);
-		    }
-		  else
-		    {
-		      wtype = unresolved_elttype;
-		    }
-		  vt_val = value_at (wtype, vt_address);
-		  common_val_print (vt_val, stream, recurse + 1,
-				    options, current_language);
-		  if (options->pretty)
-		    {
-		      fprintf_filtered (stream, "\n");
-		      print_spaces_filtered (2 + 2 * recurse, stream);
-		    }
-		}
-	    }
-
-	  /* Return number of characters printed, including the
-	     terminating '\0' if we reached the end.  val_print_string
-	     takes care including the terminating '\0' if
-	     necessary.  */
-	  return i;
-	}
-      break;
-#endif
 
 	  if (c_textual_element_type (unresolved_elttype,
 				      options->format)
@@ -428,44 +353,6 @@ cobol_val_print (struct type *type, const gdb_byte *valaddr,
       break;
 
 
-    case TYPE_CODE_REF:
-      elttype = check_typedef (TYPE_TARGET_TYPE (type));
-      if (options->addressprint)
-	{
-	  CORE_ADDR addr
-	    = extract_typed_address (valaddr + embedded_offset, type);
-
-	  fprintf_filtered (stream, "@");
-	  fputs_filtered (paddress (gdbarch, addr), stream);
-	  if (options->deref_ref)
-	    fputs_filtered (": ", stream);
-	}
-      /* De-reference the reference.  */
-      if (options->deref_ref)
-	{
-	  if (TYPE_CODE (elttype) != TYPE_CODE_UNDEF)
-	    {
-	      struct value *deref_val;
-
-	      deref_val = coerce_ref_if_computed (original_value);
-	      if (deref_val != NULL)
-		{
-		  /* More complicated computed references are not supported.  */
-		  gdb_assert (embedded_offset == 0);
-		}
-	      else
-		deref_val = value_at (TYPE_TARGET_TYPE (type),
-				      unpack_pointer (type,
-						      (valaddr
-						       + embedded_offset)));
-
-	      common_val_print (deref_val, stream, recurse, options,
-				current_language);
-	    }
-	  else
-	    fputs_filtered ("???", stream);
-	}
-      break;
 
     case TYPE_CODE_UNION:
       if (recurse && !options->unionprint)
@@ -490,8 +377,7 @@ cobol_val_print (struct type *type, const gdb_byte *valaddr,
 	  CORE_ADDR addr
 	    = extract_typed_address (valaddr + offset, field_type);
 
-	  print_function_pointer_address (gdbarch, addr, stream,
-					  options->addressprint);
+	  print_function_pointer_address (options, gdbarch, addr, stream);
 	}
       else
 	cp_print_value_fields_rtti (type, valaddr,
@@ -501,27 +387,6 @@ cobol_val_print (struct type *type, const gdb_byte *valaddr,
 				    NULL, 0);
       break;
 
-    case TYPE_CODE_FUNC:
-    case TYPE_CODE_METHOD:
-      if (options->format)
-	{
-	  val_print_scalar_formatted (type, valaddr, embedded_offset,
-				      original_value, options, 0, stream);
-	  break;
-	}
-      /* FIXME, we should consider, at least for ANSI C language,
-         eliminating the distinction made between FUNCs and POINTERs
-         to FUNCs.  */
-      fprintf_filtered (stream, "{");
-      type_print (type, "", stream, -1);
-      fprintf_filtered (stream, "} ");
-      /* Try to print what function it points to, and its address.  */
-	  /* TODO check : 7.4 -> 7.7 */
-      //print_address_demangle (gdbarch, address, stream, demangle);
-      print_address_demangle (options, gdbarch, address, stream, demangle);
-      break;
-
-    case TYPE_CODE_RANGE:
     case TYPE_CODE_INT:
       if (options->format || options->output_format)
 	{
@@ -701,12 +566,16 @@ cobol_val_print (struct type *type, const gdb_byte *valaddr,
     }
       break;
 
+    case TYPE_CODE_REF:
+    case TYPE_CODE_FUNC:
+    case TYPE_CODE_METHOD:
+    case TYPE_CODE_RANGE:
     default:
       error (_("Invalid COBOL type code %d in symbol table."),
 	     TYPE_CODE (type));
     }
   gdb_flush (stream);
-  return (0);
+
 }
 
 void
@@ -719,6 +588,16 @@ cobol_value_print (struct value *val, struct ui_file *stream,
 
   opts.deref_ref = 1;
 
+  /* If it is a pointer, indicate what it points to.
+
+     Print type also if it is a reference.
+
+     C++: if it is a member pointer, we will take care
+     of that when we print it.  */
+
+  /* Preserve the original type before stripping typedefs.  We prefer
+     to pass down the original type when possible, but for local
+     checks it is better to look past the typedefs.  */
   val_type = value_type (val);
   type = check_typedef (val_type);
 
@@ -762,11 +641,13 @@ ptr_string (struct type *type, const gdb_byte *val, CORE_ADDR address)
 {
     int display_len = 10;
     char *temp = get_cell ();
+    int diff = 0, i = 0;
+    char buf[4096];
+    char *retval = get_cell();
+
     xsnprintf (temp, 50, "%ld", address);
     //printf("[sylee debug]temp:[%s][%d]\n", temp, strlen(temp));
 
-    int diff = 0, i = 0;
-    char buf[4096];
     memset (buf, 0x00, 4096);
     memcpy (buf, (char*)temp, strlen(temp));
 
@@ -778,7 +659,6 @@ ptr_string (struct type *type, const gdb_byte *val, CORE_ADDR address)
     }
     //printf("[sylee debug]buf:[%s][%d]\n",buf,strlen(buf));
 
-    char *retval = get_cell();
     xsnprintf (retval, 50, "%s", buf);
 
     return retval;
@@ -798,15 +678,14 @@ void
 val_print_alpha_string (struct ui_file *stream, const gdb_byte *valaddr, CORE_ADDR address, struct type *type)
 {
     int i;
-    const char *val;
+    const char *val = valaddr;
     char null_char = '\0';
-    val = valaddr;
 
     char* value;
     char buf[4096];
-    memset (buf, 0x00, 4096);
     int size = TYPE_COB_DIGIT(type);
 
+    memset (buf, 0x00, 4096);
     memcpy (buf, (char*)val, size);
 
     for (i=0; i<size; i++) {
@@ -824,14 +703,20 @@ val_print_alpha_string (struct ui_file *stream, const gdb_byte *valaddr, CORE_AD
 char *
 zoned_string (struct type *type, const gdb_byte *val)
 {
-    //printf("[sylee debug][val : %s]\n", val);
-
     int sign = 1;
-    int length; //data length
-    int display_len; // data length include sign
-    int i;
+    int length = 0; //data length
+    int display_len = 0; // data length include sign
+    int i = 0;
     char null_char = '\0';
     char buf[256];
+
+    ULONGEST temp;
+    const unsigned char *p;
+    const unsigned char *startaddr = val;
+    const unsigned char *endaddr = startaddr + TYPE_LENGTH (type);
+    char* retval = get_cell();
+
+    //printf("[sylee debug][val : %s]\n", val);
 
     memset (buf, 0x00, 256);
 
@@ -856,10 +741,6 @@ zoned_string (struct type *type, const gdb_byte *val)
             buf[i] = '0';
     }
 
-    ULONGEST temp;
-    const unsigned char *p;
-    const unsigned char *startaddr = val;
-    const unsigned char *endaddr = startaddr + TYPE_LENGTH (type);
     {
         p = endaddr - 1;
         temp = ((LONGEST) * p ^ 0x80) - 0x80;
@@ -867,27 +748,27 @@ zoned_string (struct type *type, const gdb_byte *val)
             temp = (temp <<8) | *p;
     }
 
-    if ( TYPE_COB_SIGN(type) == 2 ){
+    if ( TYPE_COB_SIGN(type) == 2 ){ /*leading_over*/
         if (buf[0] >= 0x70 && buf[0] <= 0x79){
             sign = -1;
             buf[0] = buf[0] - 0x70 + '0';
         }
     }
-    else if ( TYPE_COB_SIGN(type) == 3 ){
+    else if ( TYPE_COB_SIGN(type) == 3 ){ /*trailing_over*/
         if (buf[length-1] >= 0x70 && buf[length-1] <= 0x79){
             sign = -1;
             buf[length-1] = buf[length-1] - 0x70 + '0';
         }
     }
 
-    if ( TYPE_COB_SIGN(type) == 2 ){
+    if ( TYPE_COB_SIGN(type) == 2 ){ /*leading_over*/
         memmove(buf+1, buf, strlen(buf));
         if (sign < 0)
             buf[0] = '-';
         else
             buf[0] = '+';
     }
-    else if ( TYPE_COB_SIGN(type) == 3 ){
+    else if ( TYPE_COB_SIGN(type) == 3 ){ /*trailing_over*/
         if (sign < 0)
             buf[display_len -1] = '-';
         else
@@ -895,7 +776,6 @@ zoned_string (struct type *type, const gdb_byte *val)
     }
 
     /*check sylee*/
-    char* retval = get_cell();
     xsnprintf (retval, 50, "%s", buf);
     return retval;
 }
@@ -922,13 +802,15 @@ packed_string (struct type *type, const gdb_byte *val)
     char buf[256];
     unsigned char* packed = val;
     char* temp;
+    int idx, sign_pic = 0;
+    char* pic_str = TYPE_COB_PIC_STR(type);
+    int diff = 0;
+    char* retval = get_cell();
 
     memset (buf, 0x00, 256);
     temp = buf;
 
     // sign mode('S') : first
-    int idx, sign_pic = 0;
-    char* pic_str = TYPE_COB_PIC_STR(type);
     if (pic_str[0] == 'S')
         sign_pic = 1;
 
@@ -945,10 +827,17 @@ packed_string (struct type *type, const gdb_byte *val)
 
         *temp++ = '0' + left;
         if (i == length-1) {
+			/* old source */
+			/*
             if (right == 0x0C || right == 0x0F || right == 0x00)
                 sign = 1;
             else if (right == 0x0D)
                 sign = -1;
+			*/
+			if (right == 0x0D || right == 0x0B)
+				sign = -1;
+			else
+				sign = 1; 
         }
         else {
             *temp++ = '0' + right;
@@ -956,7 +845,6 @@ packed_string (struct type *type, const gdb_byte *val)
     }
     *temp++ = 0x00;
 
-    int diff = 0;
     if (strlen(buf) > TYPE_COB_DIGIT(type)){
         diff = strlen(buf) - TYPE_COB_DIGIT(type);
         memmove(buf, buf+diff, strlen(buf)-diff);
@@ -971,7 +859,6 @@ packed_string (struct type *type, const gdb_byte *val)
             buf[0] = '+';
     }
 
-    char* retval = get_cell();
     xsnprintf (retval, 50, "%s", buf);
     return retval;
 }
@@ -990,14 +877,13 @@ void
 val_print_type_code_edited (struct type *type, const gdb_byte *valaddr,
              struct ui_file *stream, CORE_ADDR address)
 {
-    const char *val;
-    val = valaddr;
+    const char *val = valaddr;
 
     char* value;
     char buf[4096];
-    memset (buf, 0x00, 4096);
     int size = TYPE_COB_DIGIT(type);
 
+    memset (buf, 0x00, 4096);
     memcpy (buf, (char*)val, size);
     value = buf;
 
@@ -1015,9 +901,14 @@ fixed_string (struct type *type, const gdb_byte *val)
     int display_len; // data length include sign
     char *buf = get_cell();
     ULONGEST temp;
+    const unsigned char *p;
+    const unsigned char *startaddr = val;
+    const unsigned char *endaddr = startaddr + TYPE_LENGTH (type);
 
+    int diff = 0;
+    char *save = get_cell();
     // sign mode('S') : first
-    int idx, sign_pic = 0;
+    int i = 0, idx = 0, sign_pic = 0;
     char* pic_str = TYPE_COB_PIC_STR(type);
     if (pic_str[0] == 'S' || TYPE_CODE (type) == TYPE_CODE_SIGNED_FIXED)
         sign_pic = 1;
@@ -1025,9 +916,6 @@ fixed_string (struct type *type, const gdb_byte *val)
     length = TYPE_COB_DIGIT(type);
     display_len = length;
 
-    const unsigned char *p;
-    const unsigned char *startaddr = val;
-    const unsigned char *endaddr = startaddr + TYPE_LENGTH (type);
     // COMP5
     if (strncmp (TYPE_NAME (type), "COMP5", strlen("COMP5")) == 0) {
         is_comp5 = 1;
@@ -1069,8 +957,6 @@ fixed_string (struct type *type, const gdb_byte *val)
 
     //printf("temp:%d\n",temp);
 
-    int diff = 0;
-    char *save = get_cell();
     xsnprintf (save, 50, "%ld", temp);
 
     if (sign_pic == 1){
@@ -1083,7 +969,7 @@ fixed_string (struct type *type, const gdb_byte *val)
 
         if (display_len-1 > strlen(save)){
             diff = (display_len-1) - strlen(save);
-            int i, idx = 1;
+            idx = 1;
             for (i=0; i<diff; i++){
                 buf[idx] = '0';
                 idx++;
@@ -1095,7 +981,7 @@ fixed_string (struct type *type, const gdb_byte *val)
     else {
         if (display_len > strlen(save)){
             diff = (display_len) - strlen(save);
-            int i, idx = 0;
+            idx = 0;
             for (i=0; i<diff; i++){
                 buf[idx] = '0';
                 idx++;
@@ -1177,17 +1063,17 @@ value_cast_cobol (struct type *type, struct value *arg2)
 {
 /*
     code1 : cobol type_code
-    <check TYPE_CODE_ARRAY(2), TYPE_CODE_STRUCT, TYPE_CODE_UNION>
+    <check TYPE_CODE_ARRAY(2), TYPE_CODE_STRUCT(3), TYPE_CODE_UNION(4)>
     TYPE_CODE_PTR(1),
     TYPE_CODE_INT(8),
     TYPE_CODE_FLT(9),
-    TYPE_CODE_CHAR(20),
+    TYPE_CODE_CHAR(20),=>(19)
     TYPE_CODE_PACKED(27),
-    TYPE_CODE_ZONED(28),
-    TYPE_CODE_EDITED(29),
-    TYPE_CODE_SIGNED_FIXED(30),
-    TYPE_CODE_UNSIGNED_FIXED(31),
-    TYPE_CODE_DBCS(32)
+    TYPE_CODE_ZONED(28),=>(32)
+    TYPE_CODE_EDITED(29),=>(33)
+    TYPE_CODE_SIGNED_FIXED(30),=>(34)
+    TYPE_CODE_UNSIGNED_FIXED(31),=>(35)
+    TYPE_CODE_DBCS(32) =>(31)
 */
     enum type_code code1;
     enum type_code code2;
@@ -1197,7 +1083,21 @@ value_cast_cobol (struct type *type, struct value *arg2)
     int convert_to_boolean = 0;
     int cob_numeric = 0;
 
+    LONGEST longest;
+    DOUBLEST doublest;
+    const char *tmpbuf;
+    char convbuf[256];
+    int digit = 0, scale = 0;
+
+    int ix = 0, idx = 0;
+    int from_scale_status = 0;
+    char num_buf[4096];
+
+    char* testbuf;
+
+	/* to */
     code1 = TYPE_CODE (check_typedef (type));
+	/* from */
     code2 = TYPE_CODE (check_typedef (value_type (arg2)));
 
     CHECK_TYPEDEF (type);
@@ -1215,13 +1115,7 @@ value_cast_cobol (struct type *type, struct value *arg2)
     cob_numeric = (code2 == TYPE_CODE_SIGNED_FIXED || code2 == TYPE_CODE_UNSIGNED_FIXED
                 || code2 == TYPE_CODE_ZONED || code2 == TYPE_CODE_PACKED);
 
-    LONGEST longest;
-    DOUBLEST doublest;
-    char *tmpbuf;
-    char convbuf[256];
     memset (convbuf, 0x00, 256);
-
-    int digit = 0, scale = 0;
 
     switch (code1) {
         case TYPE_CODE_INT:
@@ -1263,9 +1157,9 @@ value_cast_cobol (struct type *type, struct value *arg2)
             else if (code2 == TYPE_CODE_ARRAY) {
                 sprintf (convbuf, "%s", value_contents(arg2));
 
-                int ix = 0, idx = 0;
-                int from_scale_status = 0;
-                char num_buf[4096];
+                ix = 0; 
+                idx = 0;
+                from_scale_status = 0;
                 memset (num_buf, 0x00, 4096);
                 for (ix = 0; ix < strlen(convbuf); ix++) {
                     if (convbuf[ix] == '+' || convbuf[ix] == '-') {
@@ -1281,8 +1175,8 @@ value_cast_cobol (struct type *type, struct value *arg2)
                         from_scale_status = 1;
                         continue;
                     }
-                    else if (convbuf[ix] >= 'a' && convbuf[ix] <= 'z' ||
-                             convbuf[ix] >= 'A' && convbuf[ix] <= 'Z')
+                    else if ((convbuf[ix] >= 'a' && convbuf[ix] <= 'z') ||
+                             (convbuf[ix] >= 'A' && convbuf[ix] <= 'Z'))
                         error(_("Not numeric string."));
 
                     if (from_scale_status)
@@ -1346,6 +1240,7 @@ value_cast_cobol (struct type *type, struct value *arg2)
                     return cobol_assign_to_numeric( type, type2, arg2, convbuf, is_sign );
                 }
                 else if (cob_numeric) {
+					// SYLEE TODO : pack to pack / zoned to zoned
                     tmpbuf = cobol_conv_numeric_to_int (type2, arg2, code2, &is_sign);
                     memcpy (convbuf, tmpbuf, strlen(tmpbuf));
 
@@ -1357,9 +1252,9 @@ value_cast_cobol (struct type *type, struct value *arg2)
             else if (code2 == TYPE_CODE_ARRAY) {
                 sprintf (convbuf, "%s", value_contents(arg2));
 
-                int ix = 0, idx = 0;
-                int from_scale_status = 0;
-                char num_buf[4096];
+                ix = 0;
+                idx = 0;
+                from_scale_status = 0;
                 memset (num_buf, 0x00, 4096);
                 for (ix = 0; ix < strlen(convbuf); ix++) {
                     if (convbuf[ix] == '+' || convbuf[ix] == '-') {
@@ -1375,8 +1270,8 @@ value_cast_cobol (struct type *type, struct value *arg2)
                         from_scale_status = 1;
                         continue;
                     }
-                    else if (convbuf[ix] >= 'a' && convbuf[ix] <= 'z' ||
-                             convbuf[ix] >= 'A' && convbuf[ix] <= 'Z')
+                    else if ((convbuf[ix] >= 'a' && convbuf[ix] <= 'z') ||
+                             (convbuf[ix] >= 'A' && convbuf[ix] <= 'Z'))
                         error(_("Not numeric string."));
 
                     if (from_scale_status)
@@ -1412,9 +1307,9 @@ value_cast_cobol (struct type *type, struct value *arg2)
             else if (code2 == TYPE_CODE_ARRAY) {
                 sprintf (convbuf, "%s", value_contents(arg2));
 
-                int ix = 0, idx = 0;
-                int from_scale_status = 0;
-                char num_buf[4096];
+                ix = 0;
+                idx = 0;
+                from_scale_status = 0;
                 memset (num_buf, 0x00, 4096);
                 for (ix = 0; ix < strlen(convbuf); ix++) {
                     if (convbuf[ix] == '+' || convbuf[ix] == '-') {
@@ -1430,8 +1325,8 @@ value_cast_cobol (struct type *type, struct value *arg2)
                         from_scale_status = 1;
                         continue;
                     }
-                    else if (convbuf[ix] >= 'a' && convbuf[ix] <= 'z' ||
-                             convbuf[ix] >= 'A' && convbuf[ix] <= 'Z')
+                    else if ((convbuf[ix] >= 'a' && convbuf[ix] <= 'z') ||
+                             (convbuf[ix] >= 'A' && convbuf[ix] <= 'Z'))
                         error(_("Not numeric string."));
 
                     if (from_scale_status)
@@ -1457,6 +1352,7 @@ value_cast_cobol (struct type *type, struct value *arg2)
             return arg2;
         }
             break;
+		// SYLEE TODO check numeric/alphanumeric
         case TYPE_CODE_EDITED:
         {
             if (scalar || code2 == TYPE_CODE_PTR) {
@@ -1531,6 +1427,11 @@ value_cast_cobol (struct type *type, struct value *arg2)
 char *cobol_conv_numeric_to_int (struct type *fromType, struct value* from, enum type_code code, int *is_sign)
 {
     const char *convbuf;
+    int ix = 0, tmp_idx = 0;
+    int digit_start = 0;
+    static char retbuf[4096];
+    static char* tmpbuf;
+
     switch (code) {
         case TYPE_CODE_SIGNED_FIXED:
         case TYPE_CODE_UNSIGNED_FIXED:
@@ -1547,12 +1448,9 @@ char *cobol_conv_numeric_to_int (struct type *fromType, struct value* from, enum
     }
     //printf("[sylee debug]convbuf:[%s]val[%s]\n", convbuf, value_contents(from));
 
-    int ix = 0, tmp_idx = 0;
-    int digit_start = 0;
-    char retbuf[4096];
     memset (retbuf, 0x00, 4096);
 
-    for (ix; ix<strlen(convbuf); ix++) {
+    for (ix=0; ix<strlen(convbuf); ix++) {
         if (digit_start == 0 && convbuf[ix] != '0') {
             digit_start = 1;
         }
@@ -1572,22 +1470,25 @@ char *cobol_conv_numeric_to_int (struct type *fromType, struct value* from, enum
     } 
 
     //printf("[sylee debug] numeric conversion[%s], is_sign:%d\n", retbuf, *is_sign);
-    return retbuf;
+    tmpbuf = retbuf;
+    return tmpbuf;
 }
 
 
 /* flt conversion to integer string */
-char *cobol_conv_flt_to_int (struct type *fromType, DOUBLEST doublest)
+char* cobol_conv_flt_to_int (struct type *fromType, DOUBLEST doublest)
 {
-    char *retbuf;
-    char convbuf[256];
-    memset (convbuf, 0x00, 256);
-    sprintf (convbuf, "%lf", (double)doublest);
+    static const char *retbuf = NULL;
+    static char convbuf[256];
+    char temp[256];
 
     // value 값의 digit, scale값 가져오기
     char *dotPtr;
     int dotPos;
     int digit = 0, scale = 0;
+
+    memset (convbuf, 0x00, 256);
+    sprintf (convbuf, "%lf", (double)doublest);
 
     dotPtr = strchr(convbuf,'.');
     dotPos = dotPtr-convbuf;
@@ -1604,14 +1505,17 @@ char *cobol_conv_flt_to_int (struct type *fromType, DOUBLEST doublest)
     TYPE_COB_DIGIT(fromType) = digit;
     TYPE_COB_SCALE(fromType) = scale;
 
-    char temp[256];
     memset (temp, 0x00, 256);
     memcpy (temp, convbuf+dotPos+1, scale);
 
     convbuf[digit] = '\0';
     memcpy (convbuf+dotPos, temp, scale);
 
+	//printf("temp:[%s] convbuf:[%s]\n", temp, convbuf);
+
+    retbuf = (char*) alloca (strlen(convbuf)+1);
     retbuf = convbuf;
+
     return retbuf;
 }
 
@@ -1640,21 +1544,23 @@ cobol_assign_to_binary (struct type *toType, struct type *fromType, struct value
     enum type_code code1;
     enum type_code code2;
 
-    code1 = TYPE_CODE (toType);
-    code2 = TYPE_CODE (fromType);
-
-    //printf("[sylee debug]assign_to_binary: buf[%s]\n", buf);
 
     int fromDigit = TYPE_COB_DIGIT(fromType);
     int fromScale = TYPE_COB_SCALE(fromType);
     int toDigit = TYPE_COB_DIGIT(toType);
     int toScale = TYPE_COB_SCALE(toType);
     int diffScale = 0, diffDigit = 0;
+    int display_len = toDigit;
 
+    int i = 0;
+    LONGEST srcValue;
     char toBuf[4096];
     memset (toBuf, 0x00, 4096);
-    LONGEST srcValue;
 
+    code1 = TYPE_CODE (toType);
+    code2 = TYPE_CODE (fromType);
+
+    //printf("[sylee debug]assign_to_binary: buf[%s]\n", buf);
     //printf("[to]digit:%d,scale:%d/[from]digit:%d,scale:%d\n", toDigit, toScale, fromDigit, fromScale);
 
     if (toScale > fromScale){
@@ -1673,7 +1579,6 @@ cobol_assign_to_binary (struct type *toType, struct type *fromType, struct value
     }
 
     //COMP5의 자리수 계산
-    int display_len = toDigit;
     if (is_comp5) {
         switch (TYPE_LENGTH(toType)) {
             case 1: //INT8
@@ -1694,8 +1599,7 @@ cobol_assign_to_binary (struct type *toType, struct type *fromType, struct value
     srcValue = atoi(buf);
     srcValue %= cobexp10LL[display_len];
 
-    int i = display_len - 1;
-    for (i; i>=0; i--) {
+    for (i=display_len-1; i>=0; i--) {
         toBuf[i] = (char) (srcValue % 10 + '0');
         srcValue /= 10;
     }
@@ -1715,25 +1619,25 @@ cobol_assign_to_packed (struct type *toType, struct type *fromType, struct value
     enum type_code code1;
     enum type_code code2;
 
-    code1 = TYPE_CODE (toType);
-    code2 = TYPE_CODE (fromType);
-
-    //printf("[sylee debug]assign_to_packed: buf[%s]\n", buf);
-
     int fromDigit = TYPE_COB_DIGIT(fromType);
     int fromScale = TYPE_COB_SCALE(fromType);
     int toDigit = TYPE_COB_DIGIT(toType);
     int toScale = TYPE_COB_SCALE(toType);
     int diffScale = 0, diffDigit = 0;
 
-    char toBuf[4096];
-    memset (toBuf, 0x00, 4096);
-
     char buffer[4096];
     int i, left, right;
     int bytes;
     LONGEST srcValue;
 
+	int sign = 1;
+    char toBuf[4096];
+    memset (toBuf, 0x00, 4096);
+
+    code1 = TYPE_CODE (toType);
+    code2 = TYPE_CODE (fromType);
+
+    //printf("[sylee debug]assign_to_packed: buf[%s] sign[%d]\n", buf, is_sign);
     //printf("[sylee debug][to] digit:%d/scale:%d [from]digit:%d/scale:%d\n", 
     //        toDigit, toScale, fromDigit, fromScale);
 
@@ -1752,6 +1656,18 @@ cobol_assign_to_packed (struct type *toType, struct type *fromType, struct value
 
     srcValue = atoi(buf);
     srcValue %= cobexp10LL[toDigit];
+
+	if (is_sign == 1)
+		srcValue = srcValue * (-1);
+
+
+	if (srcValue == 0)
+		sign = 1;
+	else if (srcValue < 0) {
+		srcValue *= -1;
+		sign = -1;
+	}
+
     bytes = toDigit / 2 + 1;
 
     sprintf(buffer, "%0*lld", bytes*2-1, srcValue);
@@ -1765,10 +1681,19 @@ cobol_assign_to_packed (struct type *toType, struct type *fromType, struct value
         }
 
         if (i == bytes-1) {
+			/* old source */
+			/*
             if (is_sign == 1)
                 right = 0x0D;
             else
                 right = 0x0C;
+			*/
+			if (is_sign == 1) {
+				if (sign < 0) right = 0x0D;
+				else right = 0x0C;
+			}
+			else
+				right = 0x0F;
         }
         else {
             right = buffer[2 * i + 1] - '0';
@@ -1791,22 +1716,23 @@ cobol_assign_to_zoned (struct type *toType, struct type *fromType, struct value 
     enum type_code code1;
     enum type_code code2;
 
-    code1 = TYPE_CODE (toType);
-    code2 = TYPE_CODE (fromType);
-
-    //printf("[sylee debug]assign_to_zoned: buf[%s]\n", buf);
-
     int fromDigit = TYPE_COB_DIGIT(fromType);
     int fromScale = TYPE_COB_SCALE(fromType);
     int toDigit = TYPE_COB_DIGIT(toType);
     int toScale = TYPE_COB_SCALE(toType);
     int diffScale = 0, diffDigit = 0;
 
+    int i = 0;
+    char buffer[4096];
+    LONGEST srcValue;
+
     char toBuf[4096];
     memset (toBuf, 0x00, 4096);
 
-    char buffer[4096];
-    LONGEST srcValue;
+    code1 = TYPE_CODE (toType);
+    code2 = TYPE_CODE (fromType);
+
+    //printf("[sylee debug]assign_to_zoned: buf[%s]\n", buf);
 
     //printf("[sylee debug][to] digit:%d/scale:%d [from]digit:%d/scale:%d\n", 
     //        toDigit, toScale, fromDigit, fromScale);
@@ -1828,19 +1754,11 @@ cobol_assign_to_zoned (struct type *toType, struct type *fromType, struct value 
 
     srcValue = atoi(buf);
 
-    /*
-    int fromSign = 0;
-    if (srcValue < 0) {
-        fromSign = 1;
-        srcValue *= -1;
-    }
-    */
 
     srcValue %= cobexp10LL[toDigit];
     //printf("[sylee debug]temp buf:[%s]src:[%ld]\n", buf, srcValue);
 
-    int i = toDigit - 1;
-    for(i; i>=0; i--){
+    for(i=toDigit-1; i>=0; i--){
         buffer[i] = (char) (srcValue % 10 + '0');
         srcValue /= 10;
     }
@@ -1883,16 +1801,17 @@ cobol_assign_to_flt (struct type *toType, struct type *fromType, struct value *f
 {
     int fromDigit = TYPE_COB_DIGIT(fromType);
     int fromScale = TYPE_COB_SCALE(fromType);
+    int dotPos = 0;
+    DOUBLEST srcValue;
 
     //printf("[cobol_assign_to_flt]buf:%s/buflen:%d\n", buf, strlen(buf));
 
     if (fromScale > 0) {
-        int dotPos = strlen(buf)-fromScale;
+        dotPos = strlen(buf)-fromScale;
         memmove (buf+dotPos+1, buf+dotPos, fromScale);
         buf[dotPos] = '.';
     }
 
-    DOUBLEST srcValue;
     srcValue = atof(buf);
 
     if (is_sign == 1)
@@ -1907,11 +1826,12 @@ void cobol_extend_picture (char *ogn_pic, int digit) {
     int repeatCount = 0;
     char pic;
     char buf[256];
-    memset (buf, 0x00, 256);
     char modified[4096];
+
+    memset (buf, 0x00, 256);
     memset (modified, 0x00, 4096);
 
-    for (pic_idx; pic_idx < pic_len; pic_idx++) {
+    for (pic_idx = 0; pic_idx < pic_len; pic_idx++) {
         if (ogn_pic[pic_idx] == '('){
             pic = modified[tmp_idx-1];
             pic_idx++;
@@ -1943,34 +1863,17 @@ cobol_assign_to_edited (struct type *toType, struct type *fromType, struct value
     enum type_code code1;
     enum type_code code2;
 
-    code1 = TYPE_CODE (toType);
-    code2 = TYPE_CODE (fromType);
-    //printf("[sylee debug]assign_to_edited: buf[%s]\n", buf);
-
     int fromDigit = TYPE_COB_DIGIT(fromType);
     int fromScale = TYPE_COB_SCALE(fromType);
     int toDigit = TYPE_COB_DIGIT(toType);
     int toScale = TYPE_COB_SCALE(toType);
     int diffScale = 0, diffDigit = 0;
 
-    char toBuf[4096];
-    memset (toBuf, 0x00, 4096);
-    LONGEST srcValue;
-
-    //printf("[sylee debug][to] digit:%d/scale:%d [from]digit:%d/scale:%d\n", 
-    //        toDigit, toScale, fromDigit, fromScale);
-
-    int ix, add_len, digit_started = 0;;
+    int ix, add_len, digit_started = 0;
+    int idx = 0;
     int src_len;
     int src_sign = TYPE_COB_SIGN(fromType);
     int is_src_zero = 1;
-    src_len = strlen(buf);
-    for (ix=0; ix<src_len; ix++) {
-        if (buf[ix] != '0' && buf[ix] != ' ') {
-            is_src_zero = 0;
-            break;
-        }
-    }
 
     int pic_len, scale_status = 0;
     int pic_digit = 0;
@@ -1986,15 +1889,40 @@ cobol_assign_to_edited (struct type *toType, struct type *fromType, struct value
     int is_crdb = 0;
     char credit_str[3];
     char pic[4096];
+
+    int from_scale = 0, from_scale_status = 0;
+    char num_buf[4096];
+    char from_picstr[4096];
+    int from_pic_len = fromDigit;
+    int from_pic_digit = 0;
+
+    LONGEST srcValue;
+    char modified_buf[4096];
+    char toBuf[4096];
+    memset (toBuf, 0x00, 4096);
+
+    code1 = TYPE_CODE (toType);
+    code2 = TYPE_CODE (fromType);
+    printf("[sylee debug]assign_to_edited: buf[%s]\n", buf);
+
+    printf("[sylee debug][to] digit:%d/scale:%d [from]digit:%d/scale:%d\n", 
+            toDigit, toScale, fromDigit, fromScale);
+
+    src_len = strlen(buf);
+    for (ix=0; ix<src_len; ix++) {
+        if (buf[ix] != '0' && buf[ix] != ' ') {
+            is_src_zero = 0;
+            break;
+        }
+    }
     strcpy (pic, TYPE_COB_PIC_STR(toType));
     pic_len = toDigit;
 
-    //printf("pic:[%s] pic_len:[%d]/ src:[%s] src_len:[%d]\n", pic, pic_len, buf, src_len);
+    printf("pic:[%s] pic_len:[%d]/ src:[%s] src_len:[%d]\n", pic, pic_len, buf, src_len);
 
-    char modified_buf[4096];
     memset(modified_buf, 0x00, 4096);
     cobol_extend_picture (&pic, pic_len);
-    //printf("pic:[%s]\n", pic);
+    printf("pic:[%s]\n", pic);
 
     for (pic_idx=0; pic_idx < pic_len; pic_idx++) {
         if (pic[pic_idx] == '0' || pic[pic_idx] == ',' ||
@@ -2005,8 +1933,8 @@ cobol_assign_to_edited (struct type *toType, struct type *fromType, struct value
             scale_status = 1;
             continue;
         }
-        else if (pic[pic_idx] == 'C' && pic[pic_idx+1] == 'R' ||
-                 pic[pic_idx] == 'D' && pic[pic_idx+1] == 'B' ) {
+        else if ((pic[pic_idx] == 'C' && pic[pic_idx+1] == 'R') ||
+                 (pic[pic_idx] == 'D' && pic[pic_idx+1] == 'B') ) {
             is_crdb = 1;
             credit_str[0] = pic[pic_idx];
             credit_str[1] = pic[pic_idx+1];
@@ -2042,16 +1970,13 @@ cobol_assign_to_edited (struct type *toType, struct type *fromType, struct value
     }
     else {
         // NUMERIC 만 가져온다
-        int idx = 0;
-        int from_scale = 0, from_scale_status = 0;
-        char num_buf[4096];
+        idx = 0;
         memset (num_buf, 0x00, 4096);
 
-        char from_picstr[4096];
         strcpy (from_picstr, TYPE_COB_PIC_STR(fromType));
 
-        int from_pic_len = fromDigit;
-        int from_pic_digit = 0;
+        from_pic_len = fromDigit;
+        from_pic_digit = 0;
 
         for (ix = 0; ix < from_pic_len; ix++) {
             if (from_picstr[ix] == '0' || from_picstr[ix] == ',' ||
@@ -2061,8 +1986,8 @@ cobol_assign_to_edited (struct type *toType, struct type *fromType, struct value
             else if (from_picstr[ix] == 'V' || from_picstr[ix] == '.') {
                 continue;
             }
-            else if (from_picstr[ix] == 'C' && from_picstr[ix+1] == 'R' ||
-                    from_picstr[ix] == 'D' && from_picstr[ix+1] == 'B' ) {
+            else if ((from_picstr[ix] == 'C' && from_picstr[ix+1] == 'R') ||
+                    (from_picstr[ix] == 'D' && from_picstr[ix+1] == 'B') ) {
                 from_pic_len -= 2;
 
                 break;
@@ -2075,7 +2000,7 @@ cobol_assign_to_edited (struct type *toType, struct type *fromType, struct value
                 from_pic_digit--;
         }
 
-        //printf("from pic digit:%d\n", from_pic_digit);
+        printf("from pic digit:%d\n", from_pic_digit);
 
         for (ix = 0; ix < src_len; ix++) {
             if (buf[ix] == '+' || buf[ix] == '-') {
@@ -2091,8 +2016,8 @@ cobol_assign_to_edited (struct type *toType, struct type *fromType, struct value
                 from_scale_status = 1;
                 continue;
             }
-            else if (buf[ix] >= 'a' && buf[ix] <= 'z' ||
-                     buf[ix] >= 'A' && buf[ix] <= 'Z')
+            else if ((buf[ix] >= 'a' && buf[ix] <= 'z') ||
+                     (buf[ix] >= 'A' && buf[ix] <= 'Z'))
                 error(_("Invalid string."));
 
             if (from_scale_status)
@@ -2130,7 +2055,7 @@ cobol_assign_to_edited (struct type *toType, struct type *fromType, struct value
     }
 
     tmp_buf[pic_digit] = 0x00;
-    //printf("tmp_buf:[%s]\n", tmp_buf);
+    printf("tmp_buf:[%s]\n", tmp_buf);
 
     pic_idx = 0;
     tmp_idx = 0;
@@ -2214,7 +2139,7 @@ cobol_assign_to_edited (struct type *toType, struct type *fromType, struct value
         }
     }
     target_buf[target_idx] = 0x00;
-    //printf("target_buf:[%s]\n", target_buf);
+    printf("target_buf:[%s]\n", target_buf);
 
     for (ix = 0; ix < target_idx; ix++) {
         switch (target_buf[ix]){
@@ -2307,7 +2232,7 @@ cobol_assign_to_edited (struct type *toType, struct type *fromType, struct value
         target_idx += 2;
     }
 
-    //printf("last target_buf:[%s]\n", target_buf);
+    printf("last target_buf:[%s]\n", target_buf);
     memcpy( toBuf, target_buf, target_idx );
 
     return value_from_contents_and_address(toType, toBuf, value_address(from));
@@ -2323,9 +2248,9 @@ cobol_assign_to_alpha_edited (struct type *toType, struct type *fromType, struct
     int i, j;
 
     char toBuf[4096];
-    memset (toBuf, 0x00, 4096);
-
     char temp_buf[4096];
+
+    memset (toBuf, 0x00, 4096);
     memset (temp_buf, 0x00, 4096);
 
     for (i = 0; pic[i] != 0x00; i++) {

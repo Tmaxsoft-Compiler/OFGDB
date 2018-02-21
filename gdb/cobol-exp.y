@@ -2691,6 +2691,11 @@ lex_one_token (int *is_quoted_name)
 
   /* It's a name.  See how long it is.  */
   namelen = 0;
+  if( c == '-' && namelen == 0 ){	
+    lexptr++;
+    return c;
+  }
+
   for (c = tokstart[namelen];
 	/* TODO : for COBOL '-' using in name */
        (c == '_' || c == '$' || c == '-' || (c >= '0' && c <= '9')

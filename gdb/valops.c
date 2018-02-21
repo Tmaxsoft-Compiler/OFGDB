@@ -43,6 +43,8 @@
 #include "objfiles.h"
 #include "exceptions.h"
 
+extern struct value *value_cast_cobol (struct type *type, struct value *arg2);
+
 extern unsigned int overload_debug;
 /* Local functions.  */
 
@@ -424,6 +426,10 @@ value_cast (struct type *type, struct value *arg2)
 	  return arg2;
 	}
     }
+
+	/* for COBOL conversion */
+  if (current_language->la_language == language_cobol)
+	return value_cast_cobol(type, arg2);
 
   if (current_language->c_style_arrays
       && TYPE_CODE (type2) == TYPE_CODE_ARRAY
