@@ -14285,8 +14285,9 @@ static struct type* set_pli_attr (struct type* type, const char* name) {
 static struct type *
 set_cobol_attr2 (struct type *type, char *content, int count)
 {
+	char *type_name;
     if (count == 1){ /*name*/
-        char *type_name = content;
+        type_name = content;
     }
     else if (count == 2){ /*picture string*/
         TYPE_COB_PIC_STR(type) = content;
@@ -14301,8 +14302,15 @@ set_cobol_attr2 (struct type *type, char *content, int count)
         TYPE_COB_SIGN(type) = atoi(content);
     }
     else if (count == 6){ /*endianity*/
-        TYPE_COB_ENDIAN(type) = atoi(content);
+		//if (type_name == "BINARY")
+		if (strncmp(TYPE_NAME (type), "BINARY", strlen("BINARY")) == 0)
+        	TYPE_COB_ENDIAN(type) = atoi(content);
+		else
+			TYPE_COB_LINK(type) = atoi(content);
     }
+	else if (count == 7){ /*linkage*/
+		TYPE_COB_LINK(type) = atoi(content);
+	}
 
     return type;
 }
@@ -14339,6 +14347,11 @@ read_base_type (struct die_info *die, struct dwarf2_cu *cu)
     int type_flags = 0;
     struct type *target_type = NULL;
 
+	int comp_flag = 0, buf_count = 1, linkage = 0;
+	char *buf_content;
+	char name_buf[4096];
+	memset (name_buf, 0x00, 4096);
+
     attr = dwarf2_attr (die, DW_AT_encoding, cu);
     if (attr)
     {
@@ -14355,6 +14368,32 @@ read_base_type (struct die_info *die, struct dwarf2_cu *cu)
         complaint (&symfile_complaints,
                 _("DW_AT_name missing from DW_TAG_base_type"));
     }
+	 
+	// for cobol, linkage section data
+	// SYLEE : 20180308
+/*
+	if (cu->language == language_cobol) {
+		memcpy(name_buf, (char*)name, strlen(name));
+		buf_content = strtok(name_buf, "!");
+		while (buf_content != NULL) {
+
+			if (buf_count == 1 && buf_content == "BINARY")
+				comp_flag = 1;
+			if (buf_count == 6 && comp_flag != 1)
+				linkage = atoi(buf_content);
+			else if (buf_count == 7)
+				linkage = atoi(buf_content);
+
+			buf_content = strtok(NULL, "!");
+			buf_count++;
+		}
+
+		if (linkage == 1) {
+			encoding = DW_ATE_address;
+		}
+	}
+*/
+
 
     switch (encoding)
     {

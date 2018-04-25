@@ -706,6 +706,7 @@ struct cobol_attr
     int scale;
     int sign; /* {unsigned,leading_overpunch,trailing_overpunch,leading_separate,trailing_separate} */
     int endian; /* {BIG, LITTLE, UNKNOWN} */
+	int linkage; /* for linkage section data (pointer) */
 };
 
 #define TYPE_COB_ATTR(thistype) (thistype)->cob_attr
@@ -714,6 +715,7 @@ struct cobol_attr
 #define TYPE_COB_SCALE(thistype) (thistype)->cob_attr->scale
 #define TYPE_COB_SIGN(thistype) (thistype)->cob_attr->sign
 #define TYPE_COB_ENDIAN(thistype) (thistype)->cob_attr->endian
+#define TYPE_COB_LINK(thistype) (thistype)->cob_attr->linkage
 
 
 

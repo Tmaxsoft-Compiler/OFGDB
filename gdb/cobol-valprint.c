@@ -74,6 +74,7 @@ void val_print_type_code_edited (struct type *type, const gdb_byte *valaddr, str
 void val_print_type_code_fixed (struct type *type, const gdb_byte *valaddr, struct ui_file *stream, CORE_ADDR address)
 ;
 
+void print_linkage_address_data (struct gdbarch *gdbarch, CORE_ADDR addr, struct ui_file *stream, int do_demangle, char *leadin);
 
 /* for cobol */
     const long long cobexp10LL[19] = {
@@ -134,9 +135,24 @@ cobol_val_print (struct type *type, const gdb_byte *valaddr,
   struct type *elttype, *unresolved_elttype;
   struct type *unresolved_type = type;
   unsigned eltlen;
+
+  enum type_code link_code = TYPE_CODE_PTR;
+
   CORE_ADDR addr;
 
   CHECK_TYPEDEF (type);
+
+  // for OFCOB linkage section process
+  if (TYPE_CODE(type) == TYPE_CODE_PTR && TYPE_COB_LINK(type) != 1) {
+	  struct type *link_elttype = TYPE_TARGET_TYPE (type);
+	  struct type *link_type = check_typedef (link_elttype);
+	  if (TYPE_COB_LINK(link_type) == 1 && TYPE_CODE(link_type) != TYPE_CODE_STRUCT) {
+		  addr = unpack_pointer (type, valaddr + embedded_offset);
+		  print_linkage_address_data(gdbarch, addr, stream, demangle, "");
+		  return;
+	  }
+  }
+
   switch (TYPE_CODE (type))
     {
     case TYPE_CODE_ARRAY:
@@ -270,15 +286,21 @@ cobol_val_print (struct type *type, const gdb_byte *valaddr,
 	      return;
 	    }
 
-	  if (options->symbol_print)
+
+		// ptr address & ptr name print
+	  if (options->symbol_print) 
+		{
+		// check linkage section data for cobol
 	    want_space = print_address_demangle (options, gdbarch, addr,
 						 stream, demangle);
+		}
 	  else if (options->addressprint)
 	    {
 	      fputs_filtered (paddress (gdbarch, addr), stream);
 	      want_space = 1;
 	    }
 
+		
 	  /* For a pointer to a textual type, also print the string
 	     pointed to, unless pointer is null.  */
 
@@ -288,6 +310,7 @@ cobol_val_print (struct type *type, const gdb_byte *valaddr,
 	    {
 	      if (want_space)
 		fputs_filtered (" ", stream);
+
 	      i = val_print_string (unresolved_elttype, NULL,
 				    addr, -1,
 				    stream, options);
@@ -379,12 +402,22 @@ cobol_val_print (struct type *type, const gdb_byte *valaddr,
 
 	  print_function_pointer_address (options, gdbarch, addr, stream);
 	}
-      else
-	cp_print_value_fields_rtti (type, valaddr,
-				    embedded_offset, address,
-				    stream, recurse,
-				    original_value, options,
-				    NULL, 0);
+      else 
+	  {
+		  // for OFCOB linkage section process
+		  if (TYPE_COB_LINK(TYPE_FIELD_TYPE (type, 0)) == 1) 
+		  {
+			  CORE_ADDR testaddr = unpack_pointer(type, valaddr + embedded_offset);
+			  if (embedded_offset == 0)
+				  address = testaddr;
+		  }
+
+		  cp_print_value_fields_rtti (type, valaddr,
+				  embedded_offset, address,
+				  stream, recurse,
+				  original_value, options,
+				  NULL, 0);
+	  }
       break;
 
     case TYPE_CODE_INT:
@@ -634,6 +667,88 @@ cobol_value_print (struct value *val, struct ui_file *stream,
 
 ///////////////////////////////////////////////////////////////////////
 /* print element value */
+
+/* for linkage */
+void print_linkage_address_data (struct gdbarch *gdbarch, CORE_ADDR addr, struct ui_file *stream, int do_demangle, char *leadin)
+{
+  char *name = NULL;
+  char *filename = NULL;
+  int unmapped = 0;
+  int offset = 0;
+  int line = 0;
+
+  //for linkage pointer data
+  struct expression *linkage_expr;
+  struct value *linkage_val;
+  char linkage_format = 0;
+  struct value_print_options linkage_opts;
+  const gdb_byte *linkage_value;
+  CORE_ADDR linkage_addr;
+  struct type *linkage_type;
+
+  /* Throw away both name and filename.  */
+  struct cleanup *cleanup_chain = make_cleanup (free_current_contents, &name);
+  make_cleanup (free_current_contents, &filename);
+
+  if (build_address_symbolic (gdbarch, addr, do_demangle, &name, &offset,
+			      &filename, &line, &unmapped))
+    {
+      do_cleanups (cleanup_chain);
+      return 0;
+    }
+
+  {
+	  linkage_expr = parse_expression(name);
+	  linkage_val = evaluate_expression(linkage_expr);
+
+	  linkage_value = value_contents_for_printing(linkage_val);
+	  linkage_addr = value_address(linkage_val);
+
+	  linkage_value = value_contents(linkage_val);
+	  linkage_value = value_contents_raw(linkage_val);
+
+	  linkage_type = value_type(linkage_val);
+	  if (TYPE_CODE(linkage_type) == TYPE_CODE_ZONED) {
+		  val_print_type_code_zoned(linkage_type, 
+				  linkage_value + value_embedded_offset(linkage_val), stream, linkage_addr);
+	  }
+	  else if (TYPE_CODE(linkage_type) == TYPE_CODE_PACKED) {
+		  val_print_type_code_packed (linkage_type, 
+				  linkage_value + value_embedded_offset(linkage_val), stream, linkage_addr);
+	  }
+	  else if(TYPE_CODE(linkage_type) == TYPE_CODE_INT) {
+		  val_print_type_code_int (linkage_type, 
+				  linkage_value + value_embedded_offset(linkage_val), stream);
+	  }
+	  else if(TYPE_CODE(linkage_type) == TYPE_CODE_FLT) {
+		  print_floating(linkage_value + value_embedded_offset(linkage_val), linkage_type, stream);
+	  }
+	  else if(TYPE_CODE(linkage_type) == TYPE_CODE_CHAR ||
+			  TYPE_CODE(linkage_type) == TYPE_CODE_DBCS) {
+		  val_print_alpha_string (stream, 
+				  linkage_value + value_embedded_offset(linkage_val), linkage_addr, linkage_type);
+	  }
+	  else if(TYPE_CODE(linkage_type) == TYPE_CODE_EDITED) {
+		  val_print_type_code_edited (linkage_type,
+				  linkage_value + value_embedded_offset(linkage_val), stream, linkage_addr);
+	  }
+	  else if (TYPE_CODE(linkage_type) == TYPE_CODE_SIGNED_FIXED ||
+			  TYPE_CODE(linkage_type) == TYPE_CODE_UNSIGNED_FIXED) {
+		  val_print_type_code_fixed (linkage_type, 
+				  linkage_value + value_embedded_offset(linkage_val), stream, linkage_addr);
+	  }
+	  else if(TYPE_CODE(linkage_type) == TYPE_CODE_PTR) {
+		  val_print_type_code_ptr(linkage_type, 
+				  linkage_value + value_embedded_offset(linkage_val), stream, linkage_addr);
+	  }
+	  else {
+			// TODO
+            error (_("cobol Not Implemented"));
+	  }
+  }
+  do_cleanups (cleanup_chain);
+}
+
 
 /*pointer*/
 char *
