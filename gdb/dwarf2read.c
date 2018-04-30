@@ -14312,6 +14312,9 @@ set_cobol_attr2 (struct type *type, char *content, int count)
 		TYPE_COB_LINK(type) = atoi(content);
 	}
 
+	//default
+	TYPE_COB_ISSET(type) = 0;
+
     return type;
 }
 

@@ -428,8 +428,11 @@ value_cast (struct type *type, struct value *arg2)
     }
 
 	/* for COBOL conversion */
-  if (current_language->la_language == language_cobol)
-	return value_cast_cobol(type, arg2);
+  if (current_language->la_language == language_cobol && TYPE_COB_ATTR(type)) {
+	 if (TYPE_COB_ISSET(type) == 1){
+		return value_cast_cobol(type, arg2);
+     }
+  }
 
   if (current_language->c_style_arrays
       && TYPE_CODE (type2) == TYPE_CODE_ARRAY
@@ -1049,6 +1052,11 @@ value_assign (struct value *toval, struct value *fromval)
   toval = coerce_ref (toval);
 
   type = value_type (toval);
+  //sylee 20180430
+  if (current_language->la_language == language_cobol && TYPE_COB_ATTR(type)) {
+    TYPE_COB_ISSET(type) = 1;
+  }
+
   if (VALUE_LVAL (toval) != lval_internalvar)
     fromval = value_cast (type, fromval);
   else

@@ -707,6 +707,7 @@ struct cobol_attr
     int sign; /* {unsigned,leading_overpunch,trailing_overpunch,leading_separate,trailing_separate} */
     int endian; /* {BIG, LITTLE, UNKNOWN} */
 	int linkage; /* for linkage section data (pointer) */
+	int isset;
 };
 
 #define TYPE_COB_ATTR(thistype) (thistype)->cob_attr
@@ -716,7 +717,7 @@ struct cobol_attr
 #define TYPE_COB_SIGN(thistype) (thistype)->cob_attr->sign
 #define TYPE_COB_ENDIAN(thistype) (thistype)->cob_attr->endian
 #define TYPE_COB_LINK(thistype) (thistype)->cob_attr->linkage
-
+#define TYPE_COB_ISSET(thistype) (thistype)->cob_attr->isset
 
 
 /* A ``struct type'' describes a particular instance of a type, with
