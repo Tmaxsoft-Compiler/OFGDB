@@ -5232,8 +5232,13 @@ fi
 
     # set target flag
     if test "$gdb_target" = "x86"; then
-        # need link -lquadmath
-        { $as_echo "$as_me:${as_lineno-$LINENO}: checking for main in -lquadmath" >&5
+
+$as_echo "#define _ARC_X86 1" >>confdefs.h
+
+    else
+        if test "gdb_target" = "x86_64"; then
+            # need link -lquadmath
+            { $as_echo "$as_me:${as_lineno-$LINENO}: checking for main in -lquadmath" >&5
 $as_echo_n "checking for main in -lquadmath... " >&6; }
 if test "${ac_cv_lib_quadmath_main+set}" = set; then :
   $as_echo_n "(cached) " >&6
@@ -5275,11 +5280,15 @@ fi
 
 $as_echo "#define _ARC_X86 1" >>confdefs.h
 
-    else
-        if test "$gdb_target" = "sparc"; then
+
+$as_echo "#define _ARCH_64 1" >>confdefs.h
+
+        else
+            if test "$gdb_target" = "sparc"; then
 
 $as_echo "#define _ARC_SPARC 1" >>confdefs.h
 
+            fi
         fi
     fi
 

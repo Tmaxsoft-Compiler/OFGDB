@@ -234,14 +234,21 @@ do
 
     # set target flag
     if test "$gdb_target" = "x86"; then
-        # need link -lquadmath
-        AC_CHECK_LIB(quadmath, main)
         AC_DEFINE(_ARC_X86, 1,
             [Define to 1 if your system is the x86 architecture. ])
-    else 
-        if test "$gdb_target" = "sparc"; then
-            AC_DEFINE(_ARC_SPARC, 1,
-                [Define to 1 if your system is the SPARC architecture. ])
+    else
+        if test "gdb_target" = "x86_64"; then
+            # need link -lquadmath
+            AC_CHECK_LIB(quadmath, main)
+            AC_DEFINE(_ARC_X86, 1,
+                [Define to 1 if your system is the x86 architecture. ])
+            AC_DEFINE(_ARCH_64, 1,
+                [Define to 1 if your system is the 64bit architecture. ])
+        else
+            if test "$gdb_target" = "sparc"; then
+                AC_DEFINE(_ARC_SPARC, 1,
+                    [Define to 1 if your system is the SPARC architecture. ])
+            fi
         fi
     fi
 

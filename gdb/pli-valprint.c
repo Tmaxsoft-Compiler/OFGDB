@@ -31,7 +31,8 @@
 #include <math.h>
 #include <string.h>
 
-#ifdef _ARC_X86
+/* in 32bit x86 machine, do not use quadmath library */
+#if defined(_ARC_X86) && defined(_ARCH_64)
 #include <quadmath.h>
 #endif
 
@@ -963,14 +964,22 @@ pli_val_print (struct type* type, const gdb_byte* valaddr, int embedded_offset, 
 
                     if (digit == 1) {
 #if defined(_ARC_X86)
+#if defined(_ARCH_64)
                     quadmath_snprintf(buf, sizeof(buf), "%.*QE", digit, *float_val_ptr);
+#else
+                    error (_("In x86 machine, a precision of FLOAT DEC cannot exceed 16."));
+#endif
 #elif defined(_ARC_SPARC)
                     snprintf(buf, sizeof(buf), "%.*LE", digit, *float_val_ptr);
 #endif
                     }
                     else {
 #if defined(_ARC_X86)
+#if defined(_ARCH_64)
                     quadmath_snprintf(buf, sizeof(buf), "%.*QE", digit-1, *float_val_ptr);
+#else
+                    error (_("In x86 machine, a precision of FLOAT DEC cannot exceed 16."));
+#endif
 #elif defined(_ARC_SPARC)
                     snprintf(buf, sizeof(buf), "%.*LE", digit-1, *float_val_ptr);
 #endif
