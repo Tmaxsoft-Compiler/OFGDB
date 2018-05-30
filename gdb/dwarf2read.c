@@ -14319,13 +14319,14 @@ set_cobol_attr2 (struct type *type, char *content, int count)
 }
 
 static struct type *
-set_cobol_attr (struct type *type, char *name)
+set_cobol_attr (struct type *type, const char *name)
 {
     int buf_len = strlen(name), count = 1;
     char *buf = (char*) alloca (buf_len);
-    buf = name;
+    char *content = NULL; 
+    memcpy (buf, name, buf_len);
 
-    char *content = strtok(buf, "!");
+    content = strtok(buf, "!");
     while (content != NULL) {
         type = set_cobol_attr2 ( type, content, count );
         content = strtok(NULL, "!");
@@ -14372,30 +14373,6 @@ read_base_type (struct die_info *die, struct dwarf2_cu *cu)
                 _("DW_AT_name missing from DW_TAG_base_type"));
     }
 	 
-	// for cobol, linkage section data
-	// SYLEE : 20180308
-/*
-	if (cu->language == language_cobol) {
-		memcpy(name_buf, (char*)name, strlen(name));
-		buf_content = strtok(name_buf, "!");
-		while (buf_content != NULL) {
-
-			if (buf_count == 1 && buf_content == "BINARY")
-				comp_flag = 1;
-			if (buf_count == 6 && comp_flag != 1)
-				linkage = atoi(buf_content);
-			else if (buf_count == 7)
-				linkage = atoi(buf_content);
-
-			buf_content = strtok(NULL, "!");
-			buf_count++;
-		}
-
-		if (linkage == 1) {
-			encoding = DW_ATE_address;
-		}
-	}
-*/
 
 
     switch (encoding)
