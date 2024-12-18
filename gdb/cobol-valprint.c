@@ -32,7 +32,6 @@
 #include "target.h"
 #include "cobol-lang.h"
 #include <math.h>
-
 
 /* Temporary storage using circular buffer.  */
 static char *
@@ -77,543 +76,426 @@ void val_print_type_code_fixed (struct type *type, const gdb_byte *valaddr, stru
 void print_linkage_address_data (struct gdbarch *gdbarch, CORE_ADDR addr, struct ui_file *stream, int do_demangle, char *leadin);
 
 /* for cobol */
-    const long long cobexp10LL[19] = {
-        1LL,
-        10LL,
-        100LL,
-        1000LL,
-        10000LL,
-        100000LL,
-        1000000LL,
-        10000000LL,
-        100000000LL,
-        1000000000LL,
-        10000000000LL,
-        100000000000LL,
-        1000000000000LL,
-        10000000000000LL,
-        100000000000000LL,
-        1000000000000000LL,
-        10000000000000000LL,
-        100000000000000000LL,
-        1000000000000000000LL
-    };
+const long long cobexp10LL[19] = {
+    1LL,
+    10LL,
+    100LL,
+    1000LL,
+    10000LL,
+    100000LL,
+    1000000LL,
+    10000000LL,
+    100000000LL,
+    1000000000LL,
+    10000000000LL,
+    100000000000LL,
+    1000000000000LL,
+    10000000000000LL,
+    100000000000000LL,
+    1000000000000000LL,
+    10000000000000000LL,
+    100000000000000000LL,
+    1000000000000000000LL
+};
 
-    const unsigned long long exp10ULL[19] = {
-        1ULL,
-        10ULL,
-        100ULL,
-        1000ULL,
-        10000ULL,
-        100000ULL,
-        1000000ULL,
-        10000000ULL,
-        100000000ULL,
-        1000000000ULL,
-        10000000000ULL,
-        100000000000ULL,
-        1000000000000ULL,
-        10000000000000ULL,
-        100000000000000ULL,
-        1000000000000000ULL,
-        10000000000000000ULL,
-        100000000000000000ULL,
-        1000000000000000000ULL
-    };
+const unsigned long long exp10ULL[19] = {
+    1ULL,
+    10ULL,
+    100ULL,
+    1000ULL,
+    10000ULL,
+    100000ULL,
+    1000000ULL,
+    10000000ULL,
+    100000000ULL,
+    1000000000ULL,
+    10000000000ULL,
+    100000000000ULL,
+    1000000000000ULL,
+    10000000000000ULL,
+    100000000000000ULL,
+    1000000000000000ULL,
+    10000000000000000ULL,
+    100000000000000000ULL,
+    1000000000000000000ULL
+};
 
 void
 cobol_val_print (struct type *type, const gdb_byte *valaddr,
-	     int embedded_offset, CORE_ADDR address,
-	     struct ui_file *stream, int recurse,
-	     const struct value *original_value,
-	     const struct value_print_options *options)
+         int embedded_offset, CORE_ADDR address,
+         struct ui_file *stream, int recurse,
+         const struct value *original_value,
+         const struct value_print_options *options)
 {
-  struct gdbarch *gdbarch = get_type_arch (type);
-  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
-  unsigned int i = 0;	/* Number of characters printed.  */
-  unsigned len;
-  struct type *elttype, *unresolved_elttype;
-  struct type *unresolved_type = type;
-  unsigned eltlen;
+    struct gdbarch *gdbarch = get_type_arch (type);
+    enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
+    unsigned int i = 0;    /* Number of characters printed.  */
+    unsigned len;
+    struct type *elttype, *unresolved_elttype;
+    struct type *unresolved_type = type;
+    unsigned eltlen;
 
-  enum type_code link_code = TYPE_CODE_PTR;
+    enum type_code link_code = TYPE_CODE_PTR;
 
-  CORE_ADDR addr;
+    CORE_ADDR addr;
 
-  CHECK_TYPEDEF (type);
+    CHECK_TYPEDEF (type);
 
-  // for OFCOB linkage section process
-  if (TYPE_CODE(type) == TYPE_CODE_PTR && TYPE_COB_LINK(type) != 1) {
-	  struct type *link_elttype = TYPE_TARGET_TYPE (type);
-	  struct type *link_type = check_typedef (link_elttype);
-	  if (TYPE_COB_LINK(link_type) == 1 && TYPE_CODE(link_type) != TYPE_CODE_STRUCT) {
-		  addr = unpack_pointer (type, valaddr + embedded_offset);
-		  print_linkage_address_data(gdbarch, addr, stream, demangle, "");
-		  return;
-	  }
-  }
-
-  switch (TYPE_CODE (type))
-    {
-    case TYPE_CODE_ARRAY:
-      unresolved_elttype = TYPE_TARGET_TYPE (type);
-      elttype = check_typedef (unresolved_elttype);
-      if (TYPE_LENGTH (type) > 0 && TYPE_LENGTH (unresolved_elttype) > 0)
-	{
-          LONGEST low_bound, high_bound;
-
-          if (!get_array_bounds (type, &low_bound, &high_bound))
-            error (_("Could not determine the array high bound"));
-
-	  eltlen = TYPE_LENGTH (elttype);
-	  len = high_bound - low_bound + 1;
-	  if (options->prettyformat_arrays)
-	    {
-	      print_spaces_filtered (2 + 2 * recurse, stream);
-	    }
-
-	  /* Print arrays of textual chars with a string syntax, as
-	     long as the entire array is valid.  */
-          if (c_textual_element_type (unresolved_elttype,
-				      options->format)
-	      && value_bytes_available (original_value, embedded_offset,
-					TYPE_LENGTH (type))
-	      && value_bits_valid (original_value,
-				   TARGET_CHAR_BIT * embedded_offset,
-				   TARGET_CHAR_BIT * TYPE_LENGTH (type)))
-	    {
-	      int force_ellipses = 0;
-
-	      /* If requested, look for the first null char and only
-	         print elements up to it.  */
-	      if (options->stop_print_at_null)
-		{
-		  unsigned int temp_len;
-
-		  for (temp_len = 0;
-		       (temp_len < len
-			&& temp_len < options->print_max
-			&& extract_unsigned_integer (valaddr + embedded_offset
-						     + temp_len * eltlen,
-						     eltlen, byte_order) != 0);
-		       ++temp_len)
-		    ;
-
-		  /* Force LA_PRINT_STRING to print ellipses if
-		     we've printed the maximum characters and
-		     the next character is not \000.  */
-		  if (temp_len == options->print_max && temp_len < len)
-		    {
-		      ULONGEST val
-			= extract_unsigned_integer (valaddr + embedded_offset
-						    + temp_len * eltlen,
-						    eltlen, byte_order);
-		      if (val != 0)
-			force_ellipses = 1;
-		    }
-
-		  len = temp_len;
-		}
-
-	      LA_PRINT_STRING (stream, unresolved_elttype,
-			       valaddr + embedded_offset, len,
-			       NULL, 0, options);
-	      i = len;
-	    }
-	  else
-	    {
-	      fprintf_filtered (stream, "{");
-	      /* If this is a virtual function table, print the 0th
-	         entry specially, and the rest of the members
-	         normally.  */
-	      if (cp_is_vtbl_ptr_type (elttype))
-		{
-		  i = 1;
-		  fprintf_filtered (stream, _("%d vtable entries"),
-				    len - 1);
-		}
-	      else
-		{
-		  i = 0;
-		}
-	      val_print_array_elements (type, valaddr, embedded_offset,
-					address, stream,
-					recurse, original_value, options, i);
-	      fprintf_filtered (stream, "}");
-	    }
-	  break;
-	}
-      /* Array of unspecified length: treat like pointer to first
-	 elt.  */
-      addr = address + embedded_offset;
-      goto print_unpacked_pointer;
-
-    case TYPE_CODE_PTR:
-      if (options->format && options->format != 's')
-	{
-	  val_print_scalar_formatted (type, valaddr, embedded_offset,
-				      original_value, options, 0, stream);
-	  break;
-	}
-      if (options->vtblprint && cp_is_vtbl_ptr_type (type))
-	{
-	  /* Print the unmangled name if desired.  */
-	  /* Print vtable entry - we only get here if we ARE using
-	     -fvtable_thunks.  (Otherwise, look under
-	     TYPE_CODE_STRUCT.)  */
-	  CORE_ADDR addr
-	    = extract_typed_address (valaddr + embedded_offset, type);
-
-	  print_function_pointer_address (options, gdbarch, addr, stream);
-	  break;
-	}
-      unresolved_elttype = TYPE_TARGET_TYPE (type);
-      elttype = check_typedef (unresolved_elttype);
-	{
-      int want_space;
-
-	  addr = unpack_pointer (type, valaddr + embedded_offset);
-      val_print_type_code_ptr(type, valaddr + embedded_offset, stream, addr);
-      fprintf_filtered (stream, " / ");
-
-	print_unpacked_pointer:
-	  want_space = 0;
-
-	  if (TYPE_CODE (elttype) == TYPE_CODE_FUNC)
-	    {
-	      /* Try to print what function it points to.  */
-	      print_function_pointer_address (options, gdbarch, addr, stream);
-	      return;
-	    }
-
-
-		// ptr address & ptr name print
-	  if (options->symbol_print) 
-		{
-		// check linkage section data for cobol
-	    want_space = print_address_demangle (options, gdbarch, addr,
-						 stream, demangle);
-		}
-	  else if (options->addressprint)
-	    {
-	      fputs_filtered (paddress (gdbarch, addr), stream);
-	      want_space = 1;
-	    }
-
-		
-	  /* For a pointer to a textual type, also print the string
-	     pointed to, unless pointer is null.  */
-
-	  if (c_textual_element_type (unresolved_elttype,
-				      options->format)
-	      && addr != 0)
-	    {
-	      if (want_space)
-		fputs_filtered (" ", stream);
-
-	      i = val_print_string (unresolved_elttype, NULL,
-				    addr, -1,
-				    stream, options);
-	    }
-	  else if (cp_is_vtbl_member (type))
-	    {
-	      /* Print vtbl's nicely.  */
-	      CORE_ADDR vt_address = unpack_pointer (type,
-						     valaddr
-						     + embedded_offset);
-	      struct bound_minimal_symbol msymbol =
-		lookup_minimal_symbol_by_pc (vt_address);
-
-	      /* If 'symbol_print' is set, we did the work above.  */
-	      if (!options->symbol_print
-		  && (msymbol.minsym != NULL)
-		  && (vt_address == SYMBOL_VALUE_ADDRESS (msymbol.minsym)))
-		{
-		  if (want_space)
-		    fputs_filtered (" ", stream);
-		  fputs_filtered (" <", stream);
-		  fputs_filtered (SYMBOL_PRINT_NAME (msymbol.minsym), stream);
-		  fputs_filtered (">", stream);
-		  want_space = 1;
-		}
-
-	      if (vt_address && options->vtblprint)
-		{
-		  struct value *vt_val;
-		  struct symbol *wsym = (struct symbol *) NULL;
-		  struct type *wtype;
-		  struct block *block = (struct block *) NULL;
-		  struct field_of_this_result is_this_fld;
-
-		  if (want_space)
-		    fputs_filtered (" ", stream);
-
-		  if (msymbol.minsym != NULL)
-		    wsym = lookup_symbol (SYMBOL_LINKAGE_NAME (msymbol.minsym),
-					  block, VAR_DOMAIN,
-					  &is_this_fld);
-
-		  if (wsym)
-		    {
-		      wtype = SYMBOL_TYPE (wsym);
-		    }
-		  else
-		    {
-		      wtype = unresolved_elttype;
-		    }
-		  vt_val = value_at (wtype, vt_address);
-		  common_val_print (vt_val, stream, recurse + 1,
-				    options, current_language);
-		  if (options->prettyformat)
-		    {
-		      fprintf_filtered (stream, "\n");
-		      print_spaces_filtered (2 + 2 * recurse, stream);
-		    }
-		}
-	    }
-	  return;
-	}
-      break;
-
-
-
-    case TYPE_CODE_UNION:
-      if (recurse && !options->unionprint)
-	{
-	  fprintf_filtered (stream, "{...}");
-	  break;
-	}
-      /* Fall through.  */
-    case TYPE_CODE_STRUCT:
-      /*FIXME: Abstract this away.  */
-      if (options->vtblprint && cp_is_vtbl_ptr_type (type))
-	{
-	  /* Print the unmangled name if desired.  */
-	  /* Print vtable entry - we only get here if NOT using
-	     -fvtable_thunks.  (Otherwise, look under
-	     TYPE_CODE_PTR.)  */
-	  int offset = (embedded_offset
-			+ TYPE_FIELD_BITPOS (type,
-					     VTBL_FNADDR_OFFSET) / 8);
-	  struct type *field_type = TYPE_FIELD_TYPE (type,
-						     VTBL_FNADDR_OFFSET);
-	  CORE_ADDR addr
-	    = extract_typed_address (valaddr + offset, field_type);
-
-	  print_function_pointer_address (options, gdbarch, addr, stream);
-	}
-      else 
-	  {
-		  // for OFCOB linkage section process
-		  if (TYPE_COB_LINK(TYPE_FIELD_TYPE (type, 0)) == 1) 
-		  {
-			  CORE_ADDR testaddr = unpack_pointer(type, valaddr + embedded_offset);
-			  if (embedded_offset == 0)
-				  address = testaddr;
-		  }
-
-		  cp_print_value_fields_rtti (type, valaddr,
-				  embedded_offset, address,
-				  stream, recurse,
-				  original_value, options,
-				  NULL, 0);
-	  }
-      break;
-
-    case TYPE_CODE_INT:
-      if (options->format || options->output_format)
-	{
-	  struct value_print_options opts = *options;
-
-	  opts.format = (options->format ? options->format
-			 : options->output_format);
-	  val_print_scalar_formatted (type, valaddr, embedded_offset,
-				      original_value, &opts, 0, stream);
-	}
-      else /* sylee test */
-	{
-	  val_print_type_code_int (type, valaddr + embedded_offset,
-				   stream);
-	  /* C and C++ has no single byte int type, char is used
-	     instead.  Since we don't know whether the value is really
-	     intended to be used as an integer or a character, print
-	     the character equivalent as well.  */
-	  if (c_textual_element_type (unresolved_type, options->format))
-	    {
-	      fputs_filtered (" ", stream);
-	      LA_PRINT_CHAR (unpack_long (type, valaddr + embedded_offset),
-			     unresolved_type, stream);
-	    }
-	}
-      break;
-
-    case TYPE_CODE_CHAR:
-      if (options->format || options->output_format)
-	{
-	  struct value_print_options opts = *options;
-	  opts.format = (options->format ? options->format
-			 : options->output_format);
-	  val_print_scalar_formatted (type, valaddr, embedded_offset,
-				      original_value, &opts, 0, stream);
-	}
-      else
-      {
-            /*sylee test*/
-          val_print_alpha_string (stream, valaddr + embedded_offset, address, type);
-      }
-      break;
-
-    case TYPE_CODE_FLT:
-      if (options->format)
-	{
-	  val_print_scalar_formatted (type, valaddr, embedded_offset,
-				      original_value, options, 0, stream);
-	}
-      else
-      {
-          print_floating (valaddr + embedded_offset, type, stream);
-      }
-      break;
-
-    case TYPE_CODE_ERROR:
-      fprintf_filtered (stream, "%s", TYPE_ERROR_NAME (type));
-      break;
-
-     case TYPE_CODE_ZONED:
-{
-      if (options->format || options->output_format)
-	{
-	  struct value_print_options opts = *options;
-
-	  opts.format = (options->format ? options->format
-			 : options->output_format);
-	  val_print_scalar_formatted (type, valaddr, embedded_offset,
-				      original_value, &opts, 0, stream);
-	}
-      else
-	{
-        /*sylee test*/
-	  val_print_type_code_zoned (type, valaddr + embedded_offset,
-				   stream, address);
-	  if (c_textual_element_type (unresolved_type, options->format))
-	    {
-	      fputs_filtered (" ", stream);
-	      LA_PRINT_CHAR (unpack_long (type, valaddr + embedded_offset),
-			     unresolved_type, stream);
-	    }
-	}
-}
-        break;
-
-     case TYPE_CODE_PACKED:
-{
-      if (options->format || options->output_format)
-	{
-	  struct value_print_options opts = *options;
-
-	  opts.format = (options->format ? options->format
-			 : options->output_format);
-	  val_print_scalar_formatted (type, valaddr, embedded_offset,
-				      original_value, &opts, 0, stream);
-	}
-      else
-	{
-        /*sylee test*/
-	  val_print_type_code_packed (type, valaddr + embedded_offset,
-				   stream, address);
-	  if (c_textual_element_type (unresolved_type, options->format))
-	    {
-	      fputs_filtered (" ", stream);
-	      LA_PRINT_CHAR (unpack_long (type, valaddr + embedded_offset),
-			     unresolved_type, stream);
-	    }
-	}
-}
-        break;
-
-        /* sylee test */
-    case TYPE_CODE_EDITED:
-      if (options->format || options->output_format)
-	{
-	  struct value_print_options opts = *options;
-	  opts.format = (options->format ? options->format
-			 : options->output_format);
-	  val_print_scalar_formatted (type, valaddr, embedded_offset,
-				      original_value, &opts, 0, stream);
-	}
-      else
-	{
-	  val_print_type_code_edited (type, valaddr + embedded_offset,
-				   stream, address);
-	}
-      break;
-
-    case TYPE_CODE_SIGNED_FIXED:
-    case TYPE_CODE_UNSIGNED_FIXED:
-{
-      if (options->format || options->output_format)
-	{
-	  struct value_print_options opts = *options;
-
-	  opts.format = (options->format ? options->format
-			 : options->output_format);
-	  val_print_scalar_formatted (type, valaddr, embedded_offset,
-				      original_value, &opts, 0, stream);
-	}
-      else
-	{
-        /*sylee test*/
-	  val_print_type_code_fixed (type, valaddr + embedded_offset,
-				   stream, address);
-	  if (c_textual_element_type (unresolved_type, options->format))
-	    {
-	      fputs_filtered (" ", stream);
-	      LA_PRINT_CHAR (unpack_long (type, valaddr + embedded_offset),
-			     unresolved_type, stream);
-	    }
-	}
-}
-      break;
-
-    case TYPE_CODE_DBCS:
-      if (options->format || options->output_format)
-    {
-      struct value_print_options opts = *options;
-
-      opts.format = (options->format ? options->format
-             : options->output_format);
-      val_print_scalar_formatted (type, valaddr, embedded_offset,
-                      original_value, &opts, 0, stream);
-    }
-      else
-    {
-        /*sylee test*/
-      val_print_alpha_string (stream,  valaddr + embedded_offset, address, type);
-
-      if (c_textual_element_type (unresolved_type, options->format))
-        {
-          fputs_filtered (" ", stream);
-          LA_PRINT_CHAR (unpack_long (type, valaddr + embedded_offset),
-                 unresolved_type, stream);
+    // for OFCOB linkage section process
+    if (TYPE_CODE(type) == TYPE_CODE_PTR && TYPE_COB_LINK(type) != 1) {
+        struct type *link_elttype = TYPE_TARGET_TYPE (type);
+        struct type *link_type = check_typedef (link_elttype);
+        if (TYPE_COB_LINK(link_type) == 1 && TYPE_CODE(link_type) != TYPE_CODE_STRUCT) {
+            addr = unpack_pointer (type, valaddr + embedded_offset);
+            print_linkage_address_data(gdbarch, addr, stream, demangle, "");
+            return;
         }
     }
-      break;
 
-    case TYPE_CODE_REF:
-    case TYPE_CODE_FUNC:
-    case TYPE_CODE_METHOD:
-    case TYPE_CODE_RANGE:
-    default:
-      error (_("Invalid COBOL type code %d in symbol table."),
-	     TYPE_CODE (type));
+    switch (TYPE_CODE (type)) {
+        case TYPE_CODE_ARRAY:
+            unresolved_elttype = TYPE_TARGET_TYPE (type);
+            elttype = check_typedef (unresolved_elttype);
+            if (TYPE_LENGTH (type) > 0 && TYPE_LENGTH (unresolved_elttype) > 0) {
+                LONGEST low_bound, high_bound;
+
+                if (!get_array_bounds (type, &low_bound, &high_bound))
+                    error (_("Could not determine the array high bound"));
+
+                eltlen = TYPE_LENGTH (elttype);
+                len = high_bound - low_bound + 1;
+                if (options->prettyformat_arrays) {
+                    print_spaces_filtered (2 + 2 * recurse, stream);
+                }
+
+                fprintf_filtered (stream, "{");
+                /* If this is a virtual function table, print the 0th
+                   entry specially, and the rest of the members
+                   normally.  */
+                if (cp_is_vtbl_ptr_type (elttype)) {
+                    i = 1;
+                    fprintf_filtered (stream, _("%d vtable entries"), len - 1);
+                } else {
+                    i = 0;
+                }
+                val_print_array_elements (type, valaddr, embedded_offset,
+                          address, stream,
+                          recurse, original_value, options, i);
+                fprintf_filtered (stream, "}");
+                break;
+            }
+            /* Array of unspecified length: treat like pointer to first elt.  */
+            addr = address + embedded_offset;
+            goto print_unpacked_pointer;
+
+        case TYPE_CODE_PTR:
+            if (options->format && options->format != 's') {
+                val_print_scalar_formatted (type, valaddr, embedded_offset,
+                                original_value, options, 0, stream);
+                break;
+            }
+
+            if (options->vtblprint && cp_is_vtbl_ptr_type (type)) {
+                /* Print the unmangled name if desired.  */
+                /* Print vtable entry - we only get here if we ARE using
+                   -fvtable_thunks.  (Otherwise, look under
+                   TYPE_CODE_STRUCT.)  */
+                CORE_ADDR addr = extract_typed_address (valaddr + embedded_offset, type);
+
+                print_function_pointer_address (options, gdbarch, addr, stream);
+                break;
+            }
+            unresolved_elttype = TYPE_TARGET_TYPE (type);
+            elttype = check_typedef (unresolved_elttype);
+            {
+                int want_space;
+
+                addr = unpack_pointer (type, valaddr + embedded_offset);
+                val_print_type_code_ptr(type, valaddr + embedded_offset, stream, addr);
+                fprintf_filtered (stream, " / ");
+
+                print_unpacked_pointer:
+                want_space = 0;
+
+                if (TYPE_CODE (elttype) == TYPE_CODE_FUNC) {
+                    /* Try to print what function it points to.  */
+                    print_function_pointer_address (options, gdbarch, addr, stream);
+                    return;
+                }
+
+                // ptr address & ptr name print
+                if (options->symbol_print) {
+                    // check linkage section data for cobol
+                    want_space = print_address_demangle (options, gdbarch, addr,
+                                     stream, demangle);
+                } else if (options->addressprint) {
+                    fputs_filtered (paddress (gdbarch, addr), stream);
+                    want_space = 1;
+                }
+
+                /* For a pointer to a textual type, also print the string
+                   pointed to, unless pointer is null.  */
+
+                if (c_textual_element_type (unresolved_elttype, options->format) && addr != 0) {
+                    if (want_space)
+                        fputs_filtered (" ", stream);
+
+                    i = val_print_string (unresolved_elttype, NULL,
+                              addr, -1,
+                              stream, options);
+                } else if (cp_is_vtbl_member (type)) {
+                    /* Print vtbl's nicely.  */
+                    CORE_ADDR vt_address = unpack_pointer (type,
+                                       valaddr
+                                       + embedded_offset);
+                    struct bound_minimal_symbol msymbol = lookup_minimal_symbol_by_pc (vt_address);
+
+                    /* If 'symbol_print' is set, we did the work above.  */
+                    if (!options->symbol_print
+                    && (msymbol.minsym != NULL)
+                    && (vt_address == SYMBOL_VALUE_ADDRESS (msymbol.minsym))) {
+                        if (want_space)
+                            fputs_filtered (" ", stream);
+                        fputs_filtered (" <", stream);
+                        fputs_filtered (SYMBOL_PRINT_NAME (msymbol.minsym), stream);
+                        fputs_filtered (">", stream);
+                        want_space = 1;
+                    }
+
+                    if (vt_address && options->vtblprint) {
+                        struct value *vt_val;
+                        struct symbol *wsym = (struct symbol *) NULL;
+                        struct type *wtype;
+                        struct block *block = (struct block *) NULL;
+                        struct field_of_this_result is_this_fld;
+
+                        if (want_space)
+                            fputs_filtered (" ", stream);
+
+                        if (msymbol.minsym != NULL)
+                            wsym = lookup_symbol (SYMBOL_LINKAGE_NAME (msymbol.minsym),
+                                      block, VAR_DOMAIN,
+                                      &is_this_fld);
+
+                        if (wsym) {
+                            wtype = SYMBOL_TYPE (wsym);
+                        } else {
+                            wtype = unresolved_elttype;
+                        }
+                        vt_val = value_at (wtype, vt_address);
+                        common_val_print (vt_val, stream, recurse + 1,
+                                  options, current_language);
+                        if (options->prettyformat) {
+                            fprintf_filtered (stream, "\n");
+                            print_spaces_filtered (2 + 2 * recurse, stream);
+                        }
+                    }
+                }
+                return;
+            }
+            break;
+
+        case TYPE_CODE_UNION:
+            if (recurse && !options->unionprint) {
+                fprintf_filtered (stream, "{...}");
+                break;
+            }
+
+        /* Fall through.  */
+        case TYPE_CODE_STRUCT:
+            /*FIXME: Abstract this away.  */
+            if (options->vtblprint && cp_is_vtbl_ptr_type (type)) {
+                /* Print the unmangled name if desired.  */
+                /* Print vtable entry - we only get here if NOT using
+                   -fvtable_thunks.  (Otherwise, look under
+                   TYPE_CODE_PTR.)  */
+                int offset = (embedded_offset
+                      + TYPE_FIELD_BITPOS (type,
+                                   VTBL_FNADDR_OFFSET) / 8);
+                struct type *field_type = TYPE_FIELD_TYPE (type,
+                                       VTBL_FNADDR_OFFSET);
+                CORE_ADDR addr
+                  = extract_typed_address (valaddr + offset, field_type);
+
+                print_function_pointer_address (options, gdbarch, addr, stream);
+            } else {
+                // for OFCOB linkage section process
+                if (TYPE_COB_LINK(TYPE_FIELD_TYPE (type, 0)) == 1) {
+                    CORE_ADDR testaddr = unpack_pointer(type, valaddr + embedded_offset);
+                    if (embedded_offset == 0)
+                        address = testaddr;
+                }
+
+                cp_print_value_fields_rtti (type, valaddr,
+                        embedded_offset, address,
+                        stream, recurse,
+                        original_value, options,
+                        NULL, 0);
+            }
+            break;
+
+        case TYPE_CODE_INT:
+            if (options->format || options->output_format) {
+                struct value_print_options opts = *options;
+
+                opts.format = (options->format ? options->format
+                       : options->output_format);
+                val_print_scalar_formatted (type, valaddr, embedded_offset,
+                                original_value, &opts, 0, stream);
+            } else /* sylee test */ {
+                val_print_type_code_int (type, valaddr + embedded_offset, stream);
+                /* C and C++ has no single byte int type, char is used
+                   instead.  Since we don't know whether the value is really
+                   intended to be used as an integer or a character, print
+                   the character equivalent as well.  */
+                if (c_textual_element_type (unresolved_type, options->format)) {
+                    fputs_filtered (" ", stream);
+                    LA_PRINT_CHAR (unpack_long (type, valaddr + embedded_offset),
+                           unresolved_type, stream);
+                }
+            }
+            break;
+
+        case TYPE_CODE_CHAR:
+            if (options->format || options->output_format) {
+                struct value_print_options opts = *options;
+                opts.format = (options->format ? options->format
+                       : options->output_format);
+                val_print_scalar_formatted (type, valaddr, embedded_offset,
+                                original_value, &opts, 0, stream);
+            } else {
+                /*sylee test*/
+                val_print_alpha_string (stream, valaddr + embedded_offset, address, type);
+            }
+            break;
+
+        case TYPE_CODE_FLT:
+            if (options->format) {
+                val_print_scalar_formatted (type, valaddr, embedded_offset,
+                                original_value, options, 0, stream);
+            } else {
+                print_floating (valaddr + embedded_offset, type, stream);
+            }
+            break;
+
+        case TYPE_CODE_ERROR:
+            fprintf_filtered (stream, "%s", TYPE_ERROR_NAME (type));
+            break;
+
+        case TYPE_CODE_ZONED:
+        {
+            if (options->format || options->output_format) {
+                struct value_print_options opts = *options;
+
+                opts.format = (options->format ? options->format : options->output_format);
+                val_print_scalar_formatted (type, valaddr, embedded_offset,
+                                original_value, &opts, 0, stream);
+            } else {
+                /*sylee test*/
+                val_print_type_code_zoned (type, valaddr + embedded_offset,
+                             stream, address);
+                if (c_textual_element_type (unresolved_type, options->format)) {
+                    fputs_filtered (" ", stream);
+                    LA_PRINT_CHAR (unpack_long (type, valaddr + embedded_offset),
+                           unresolved_type, stream);
+                }
+            }
+        }
+            break;
+
+        case TYPE_CODE_PACKED:
+        {
+            if (options->format || options->output_format) {
+                struct value_print_options opts = *options;
+
+                opts.format = (options->format ? options->format
+                       : options->output_format);
+                val_print_scalar_formatted (type, valaddr, embedded_offset,
+                                original_value, &opts, 0, stream);
+            } else {
+                /*sylee test*/
+                val_print_type_code_packed (type, valaddr + embedded_offset,
+                             stream, address);
+                if (c_textual_element_type (unresolved_type, options->format)) {
+                    fputs_filtered (" ", stream);
+                    LA_PRINT_CHAR (unpack_long (type, valaddr + embedded_offset),
+                           unresolved_type, stream);
+                }
+            }
+        }
+            break;
+
+        /* sylee test */
+        case TYPE_CODE_EDITED:
+            if (options->format || options->output_format) {
+                struct value_print_options opts = *options;
+                opts.format = (options->format ? options->format
+                       : options->output_format);
+                val_print_scalar_formatted (type, valaddr, embedded_offset,
+                                original_value, &opts, 0, stream);
+            } else {
+                val_print_type_code_edited (type, valaddr + embedded_offset,
+                             stream, address);
+            }
+            break;
+
+        case TYPE_CODE_SIGNED_FIXED:
+        case TYPE_CODE_UNSIGNED_FIXED:
+        {
+            if (options->format || options->output_format) {
+                struct value_print_options opts = *options;
+
+                opts.format = (options->format ? options->format
+                       : options->output_format);
+                val_print_scalar_formatted (type, valaddr, embedded_offset,
+                                original_value, &opts, 0, stream);
+            } else {
+                /*sylee test*/
+                val_print_type_code_fixed (type, valaddr + embedded_offset,
+                             stream, address);
+                if (c_textual_element_type (unresolved_type, options->format)) {
+                    fputs_filtered (" ", stream);
+                    LA_PRINT_CHAR (unpack_long (type, valaddr + embedded_offset),
+                           unresolved_type, stream);
+                }
+            }
+        }
+            break;
+
+        case TYPE_CODE_DBCS:
+            if (options->format || options->output_format) {
+                struct value_print_options opts = *options;
+
+                opts.format = (options->format ? options->format
+                       : options->output_format);
+                val_print_scalar_formatted (type, valaddr, embedded_offset,
+                                original_value, &opts, 0, stream);
+            } else {
+                /*sylee test*/
+                val_print_alpha_string (stream,  valaddr + embedded_offset, address, type);
+
+                if (c_textual_element_type (unresolved_type, options->format)) {
+                    fputs_filtered (" ", stream);
+                    LA_PRINT_CHAR (unpack_long (type, valaddr + embedded_offset),
+                           unresolved_type, stream);
+                }
+            }
+            break;
+
+        case TYPE_CODE_REF:
+        case TYPE_CODE_FUNC:
+        case TYPE_CODE_METHOD:
+        case TYPE_CODE_RANGE:
+        default:
+          error (_("Invalid COBOL type code %d in symbol table."),
+             TYPE_CODE (type));
     }
-  gdb_flush (stream);
-
+    gdb_flush (stream);
 }
-
+
 void
 cobol_value_print (struct value *val, struct ui_file *stream, 
-	       const struct value_print_options *options)
+           const struct value_print_options *options)
 {
   struct type *type, *real_type, *val_type;
   int full, top, using_enc;
@@ -638,31 +520,31 @@ cobol_value_print (struct value *val, struct ui_file *stream,
     fprintf_filtered (stream, " [uninitialized] ");
 
     /*sylee test : type name print*/
-	if (TYPE_CODE(type) == TYPE_CODE_STRUCT ||
+    if (TYPE_CODE(type) == TYPE_CODE_STRUCT ||
         TYPE_CODE(type) == TYPE_CODE_UNION  ||
         TYPE_CODE(type) == TYPE_CODE_ARRAY) {
-	  /* normal case */
-	  fprintf_filtered (stream, "(");
-	  type_print (value_type (val), "", stream, -1);
-	  fprintf_filtered (stream, ") ");
-	}
-	else {
-	  fprintf_filtered (stream, "(USAGE:");
-	  type_print (value_type (val), "", stream, -1);
+      /* normal case */
+      fprintf_filtered (stream, "(");
+      type_print (value_type (val), "", stream, -1);
+      fprintf_filtered (stream, ") ");
+    }
+    else {
+      fprintf_filtered (stream, "(USAGE:");
+      type_print (value_type (val), "", stream, -1);
 
       if (TYPE_COB_PIC_STR(type) != NULL)
         fprintf_filtered (stream, "/PIC:%s) ", TYPE_COB_PIC_STR(type));
       else
-	    fprintf_filtered (stream, ") ");
-	}
+        fprintf_filtered (stream, ") ");
+    }
 
     /* sylee test */
   //return val_print (val_type, value_contents_for_printing (val),
   val_print (val_type, value_contents_for_printing (val),
-		    value_embedded_offset (val),
-		    value_address (val),
-		    stream, 0,
-		    val, &opts, current_language);
+            value_embedded_offset (val),
+            value_address (val),
+            stream, 0,
+            val, &opts, current_language);
 }
 
 ///////////////////////////////////////////////////////////////////////
@@ -691,60 +573,60 @@ void print_linkage_address_data (struct gdbarch *gdbarch, CORE_ADDR addr, struct
   make_cleanup (free_current_contents, &filename);
 
   if (build_address_symbolic (gdbarch, addr, do_demangle, &name, &offset,
-			      &filename, &line, &unmapped))
+                  &filename, &line, &unmapped))
     {
       do_cleanups (cleanup_chain);
       return 0;
     }
 
   {
-	  linkage_expr = parse_expression(name);
-	  linkage_val = evaluate_expression(linkage_expr);
+      linkage_expr = parse_expression(name);
+      linkage_val = evaluate_expression(linkage_expr);
 
-	  linkage_value = value_contents_for_printing(linkage_val);
-	  linkage_addr = value_address(linkage_val);
+      linkage_value = value_contents_for_printing(linkage_val);
+      linkage_addr = value_address(linkage_val);
 
-	  linkage_value = value_contents(linkage_val);
-	  linkage_value = value_contents_raw(linkage_val);
+      linkage_value = value_contents(linkage_val);
+      linkage_value = value_contents_raw(linkage_val);
 
-	  linkage_type = value_type(linkage_val);
-	  if (TYPE_CODE(linkage_type) == TYPE_CODE_ZONED) {
-		  val_print_type_code_zoned(linkage_type, 
-				  linkage_value + value_embedded_offset(linkage_val), stream, linkage_addr);
-	  }
-	  else if (TYPE_CODE(linkage_type) == TYPE_CODE_PACKED) {
-		  val_print_type_code_packed (linkage_type, 
-				  linkage_value + value_embedded_offset(linkage_val), stream, linkage_addr);
-	  }
-	  else if(TYPE_CODE(linkage_type) == TYPE_CODE_INT) {
-		  val_print_type_code_int (linkage_type, 
-				  linkage_value + value_embedded_offset(linkage_val), stream);
-	  }
-	  else if(TYPE_CODE(linkage_type) == TYPE_CODE_FLT) {
-		  print_floating(linkage_value + value_embedded_offset(linkage_val), linkage_type, stream);
-	  }
-	  else if(TYPE_CODE(linkage_type) == TYPE_CODE_CHAR ||
-			  TYPE_CODE(linkage_type) == TYPE_CODE_DBCS) {
-		  val_print_alpha_string (stream, 
-				  linkage_value + value_embedded_offset(linkage_val), linkage_addr, linkage_type);
-	  }
-	  else if(TYPE_CODE(linkage_type) == TYPE_CODE_EDITED) {
-		  val_print_type_code_edited (linkage_type,
-				  linkage_value + value_embedded_offset(linkage_val), stream, linkage_addr);
-	  }
-	  else if (TYPE_CODE(linkage_type) == TYPE_CODE_SIGNED_FIXED ||
-			  TYPE_CODE(linkage_type) == TYPE_CODE_UNSIGNED_FIXED) {
-		  val_print_type_code_fixed (linkage_type, 
-				  linkage_value + value_embedded_offset(linkage_val), stream, linkage_addr);
-	  }
-	  else if(TYPE_CODE(linkage_type) == TYPE_CODE_PTR) {
-		  val_print_type_code_ptr(linkage_type, 
-				  linkage_value + value_embedded_offset(linkage_val), stream, linkage_addr);
-	  }
-	  else {
-			// TODO
+      linkage_type = value_type(linkage_val);
+      if (TYPE_CODE(linkage_type) == TYPE_CODE_ZONED) {
+          val_print_type_code_zoned(linkage_type,
+                  linkage_value + value_embedded_offset(linkage_val), stream, linkage_addr);
+      }
+      else if (TYPE_CODE(linkage_type) == TYPE_CODE_PACKED) {
+          val_print_type_code_packed (linkage_type,
+                  linkage_value + value_embedded_offset(linkage_val), stream, linkage_addr);
+      }
+      else if(TYPE_CODE(linkage_type) == TYPE_CODE_INT) {
+          val_print_type_code_int (linkage_type,
+                  linkage_value + value_embedded_offset(linkage_val), stream);
+      }
+      else if(TYPE_CODE(linkage_type) == TYPE_CODE_FLT) {
+          print_floating(linkage_value + value_embedded_offset(linkage_val), linkage_type, stream);
+      }
+      else if(TYPE_CODE(linkage_type) == TYPE_CODE_CHAR ||
+              TYPE_CODE(linkage_type) == TYPE_CODE_DBCS) {
+          val_print_alpha_string (stream,
+                  linkage_value + value_embedded_offset(linkage_val), linkage_addr, linkage_type);
+      }
+      else if(TYPE_CODE(linkage_type) == TYPE_CODE_EDITED) {
+          val_print_type_code_edited (linkage_type,
+                  linkage_value + value_embedded_offset(linkage_val), stream, linkage_addr);
+      }
+      else if (TYPE_CODE(linkage_type) == TYPE_CODE_SIGNED_FIXED ||
+              TYPE_CODE(linkage_type) == TYPE_CODE_UNSIGNED_FIXED) {
+          val_print_type_code_fixed (linkage_type,
+                  linkage_value + value_embedded_offset(linkage_val), stream, linkage_addr);
+      }
+      else if(TYPE_CODE(linkage_type) == TYPE_CODE_PTR) {
+          val_print_type_code_ptr(linkage_type,
+                  linkage_value + value_embedded_offset(linkage_val), stream, linkage_addr);
+      }
+      else {
+            // TODO
             error (_("cobol Not Implemented"));
-	  }
+      }
   }
   do_cleanups (cleanup_chain);
 }
@@ -942,17 +824,17 @@ packed_string (struct type *type, const gdb_byte *val)
 
         *temp++ = '0' + left;
         if (i == length-1) {
-			/* old source */
-			/*
+            /* old source */
+            /*
             if (right == 0x0C || right == 0x0F || right == 0x00)
                 sign = 1;
             else if (right == 0x0D)
                 sign = -1;
-			*/
-			if (right == 0x0D || right == 0x0B)
-				sign = -1;
-			else
-				sign = 1; 
+            */
+            if (right == 0x0D || right == 0x0B)
+                sign = -1;
+            else
+                sign = 1;
         }
         else {
             *temp++ = '0' + right;
@@ -1210,9 +1092,9 @@ value_cast_cobol (struct type *type, struct value *arg2)
 
     char* testbuf;
 
-	/* to */
+    /* to */
     code1 = TYPE_CODE (check_typedef (type));
-	/* from */
+    /* from */
     code2 = TYPE_CODE (check_typedef (value_type (arg2)));
 
     CHECK_TYPEDEF (type);
@@ -1248,13 +1130,13 @@ value_cast_cobol (struct type *type, struct value *arg2)
                 else if (code2 == TYPE_CODE_FLT) {
                     doublest = value_as_double(arg2);
 
-                    // value 값의 sign값 설정
+                    // set sign of value
                     if (doublest < 0) {
                         is_sign = 1;
                         doublest = (double)doublest * -1;
                     }
 
-                    // int string으로 변환
+                    // convert to int string
                     tmpbuf = cobol_conv_flt_to_int (type2, doublest);
                     memcpy (convbuf, tmpbuf, strlen(tmpbuf));
 
@@ -1300,7 +1182,7 @@ value_cast_cobol (struct type *type, struct value *arg2)
                 //printf("num_buf[%s]digit[%d]scale[%d]\n", num_buf,strlen(num_buf), scale);
                 digit = strlen(num_buf);
 
-                // TYPE의 digit,scale 등의 정보 설정 
+                // set digit,scale of TYPE
                 if (!TYPE_COB_ATTR(type2)) {
                     TYPE_COB_ATTR(type2) = XMALLOC (struct cobol_attr);
                     TYPE_COB_DIGIT(type2) = digit;
@@ -1330,7 +1212,7 @@ value_cast_cobol (struct type *type, struct value *arg2)
                     sprintf (convbuf, "%ld", longest);
                     digit = strlen(convbuf);
 
-                    // TYPE의 digit,scale 등의 정보 설정 
+                    // set digit,scale of TYPE
                     if (!TYPE_COB_ATTR(type2)) {
                         TYPE_COB_ATTR(type2) = XMALLOC (struct cobol_attr);
                     }
@@ -1342,20 +1224,20 @@ value_cast_cobol (struct type *type, struct value *arg2)
                 else if (code2 == TYPE_CODE_FLT) {
                     doublest = value_as_double(arg2);
 
-                    // value 값의 sign값 설정
+                    // set sign of value
                     if (doublest < 0) {
                         is_sign = 1;
                         doublest = (double)doublest * -1;
                     }
 
-                    // int string으로 변환
+                    // convert to int string
                     tmpbuf = cobol_conv_flt_to_int (type2, doublest);
                     memcpy (convbuf, tmpbuf, strlen(tmpbuf));
 
                     return cobol_assign_to_numeric( type, type2, arg2, convbuf, is_sign );
                 }
                 else if (cob_numeric) {
-					// SYLEE TODO : pack to pack / zoned to zoned
+                    // SYLEE TODO : pack to pack / zoned to zoned
                     tmpbuf = cobol_conv_numeric_to_int (type2, arg2, code2, &is_sign);
                     memcpy (convbuf, tmpbuf, strlen(tmpbuf));
 
@@ -1395,7 +1277,7 @@ value_cast_cobol (struct type *type, struct value *arg2)
                 //printf("num_buf[%s]digit[%d]scale[%d]\n", num_buf,strlen(num_buf), scale);
                 digit = strlen(num_buf);
 
-                // TYPE의 digit,scale 등의 정보 설정 
+                // set digit,scale of TYPE
                 if (!TYPE_COB_ATTR(type2)) {
                     TYPE_COB_ATTR(type2) = XMALLOC (struct cobol_attr);
                     TYPE_COB_DIGIT(type2) = digit;
@@ -1450,7 +1332,7 @@ value_cast_cobol (struct type *type, struct value *arg2)
                 //printf("num_buf[%s]digit[%d]scale[%d]\n", num_buf,strlen(num_buf), scale);
                 digit = strlen(num_buf);
 
-                // TYPE의 digit,scale 등의 정보 설정 
+                // set digit,scale of TYPE
                 if (!TYPE_COB_ATTR(type2)) {
                     TYPE_COB_ATTR(type2) = XMALLOC (struct cobol_attr);
                     TYPE_COB_DIGIT(type2) = digit;
@@ -1467,7 +1349,7 @@ value_cast_cobol (struct type *type, struct value *arg2)
             return arg2;
         }
             break;
-		// SYLEE TODO check numeric/alphanumeric
+        // SYLEE TODO check numeric/alphanumeric
         case TYPE_CODE_EDITED:
         {
             if (scalar || code2 == TYPE_CODE_PTR) {
@@ -1497,13 +1379,13 @@ value_cast_cobol (struct type *type, struct value *arg2)
                 else if (code2 == TYPE_CODE_FLT) {
                     doublest = value_as_double(arg2);
 
-                    // value 값의 sign값 설정
+                    // set sign of value
                     if (doublest < 0) {
                         is_sign = 1;
                         doublest = (double)doublest * -1;
                     }
 
-                    // int string으로 변환
+                    // convert to int string
                     tmpbuf = cobol_conv_flt_to_int (type2, doublest);
                     memcpy (convbuf, tmpbuf, strlen(tmpbuf));
 
@@ -1516,7 +1398,7 @@ value_cast_cobol (struct type *type, struct value *arg2)
                 sprintf (convbuf, "%s", value_contents(arg2));
                 digit = strlen(convbuf);
 
-                // TYPE의 digit,scale 등의 정보 설정 
+                // set digit,scale of TYPE
                 if (!TYPE_COB_ATTR(type2)) {
                     TYPE_COB_ATTR(type2) = XMALLOC (struct cobol_attr);
                     TYPE_COB_DIGIT(type2) = digit;
@@ -1597,7 +1479,7 @@ char* cobol_conv_flt_to_int (struct type *fromType, DOUBLEST doublest)
     static char convbuf[256];
     char temp[256];
 
-    // value 값의 digit, scale값 가져오기
+    // get digit, scale of value
     char *dotPtr;
     int dotPos;
     int digit = 0, scale = 0;
@@ -1612,7 +1494,7 @@ char* cobol_conv_flt_to_int (struct type *fromType, DOUBLEST doublest)
 
     //printf("doublest:%lf, convbuf:%s\n", (double)doublest, convbuf);
 
-    // TYPE의 digit,scale 등의 정보 설정 
+    // set digit,scale of TYPE
     if (!TYPE_COB_ATTR(fromType)) {
         TYPE_COB_ATTR(fromType) = XMALLOC (struct cobol_attr);
     }
@@ -1626,7 +1508,7 @@ char* cobol_conv_flt_to_int (struct type *fromType, DOUBLEST doublest)
     convbuf[digit] = '\0';
     memcpy (convbuf+dotPos, temp, scale);
 
-	//printf("temp:[%s] convbuf:[%s]\n", temp, convbuf);
+    //printf("temp:[%s] convbuf:[%s]\n", temp, convbuf);
 
     retbuf = (char*) alloca (strlen(convbuf)+1);
     retbuf = convbuf;
@@ -1693,7 +1575,7 @@ cobol_assign_to_binary (struct type *toType, struct type *fromType, struct value
 
     }
 
-    //COMP5의 자리수 계산
+    // Calculating the number of digits for COMP5
     if (is_comp5) {
         switch (TYPE_LENGTH(toType)) {
             case 1: //INT8
@@ -1745,7 +1627,7 @@ cobol_assign_to_packed (struct type *toType, struct type *fromType, struct value
     int bytes;
     LONGEST srcValue;
 
-	int sign = 1;
+    int sign = 1;
     char toBuf[4096];
     memset (toBuf, 0x00, 4096);
 
@@ -1772,16 +1654,16 @@ cobol_assign_to_packed (struct type *toType, struct type *fromType, struct value
     srcValue = atoi(buf);
     srcValue %= cobexp10LL[toDigit];
 
-	if (is_sign == 1)
-		srcValue = srcValue * (-1);
+    if (is_sign == 1)
+        srcValue = srcValue * (-1);
 
 
-	if (srcValue == 0)
-		sign = 1;
-	else if (srcValue < 0) {
-		srcValue *= -1;
-		sign = -1;
-	}
+    if (srcValue == 0)
+        sign = 1;
+    else if (srcValue < 0) {
+        srcValue *= -1;
+        sign = -1;
+    }
 
     bytes = toDigit / 2 + 1;
 
@@ -1796,19 +1678,19 @@ cobol_assign_to_packed (struct type *toType, struct type *fromType, struct value
         }
 
         if (i == bytes-1) {
-			/* old source */
-			/*
+            /* old source */
+            /*
             if (is_sign == 1)
                 right = 0x0D;
             else
                 right = 0x0C;
-			*/
-			if (is_sign == 1) {
-				if (sign < 0) right = 0x0D;
-				else right = 0x0C;
-			}
-			else
-				right = 0x0F;
+            */
+            if (is_sign == 1) {
+                if (sign < 0) right = 0x0D;
+                else right = 0x0C;
+            }
+            else
+                right = 0x0F;
         }
         else {
             right = buffer[2 * i + 1] - '0';
@@ -2084,7 +1966,7 @@ cobol_assign_to_edited (struct type *toType, struct type *fromType, struct value
         return cobol_assign_to_alpha_edited(toType, fromType, from, pic, buf);
     }
     else {
-        // NUMERIC 만 가져온다
+        // Bring only NUMERIC
         idx = 0;
         memset (num_buf, 0x00, 4096);
 

@@ -102,6 +102,10 @@ pli_type_print_varspec_prefix (struct type* type, struct ui_file* stream,
             pli_type_print_varspec_prefix (TYPE_TARGET_TYPE (type), stream, show, passed_a_ptr, 0, flags);
             break;
 
+        case TYPE_CODE_PTR:
+      		fprintf_filtered (stream, "*");
+            break;
+
         /* types that need no prefix */
         case TYPE_CODE_UNDEF:
         case TYPE_CODE_ERROR:
@@ -117,7 +121,6 @@ pli_type_print_varspec_prefix (struct type* type, struct ui_file* stream,
         case TYPE_CODE_BIT:
         case TYPE_CODE_DBCS:
         case TYPE_CODE_PICTURE:
-        case TYPE_CODE_PTR:
             break;
 
         default:
@@ -253,9 +256,9 @@ pli_type_print_base (struct type* type, struct ui_file* stream,
                 }
 
                 if (TYPE_CODE (type) == TYPE_CODE_UNION)
-                    fprintf_filtered (stream, "UNION");
+                    fprintf_filtered (stream, "union");
                 else
-                    fprintf_filtered (stream, "STRUCT");
+                    fprintf_filtered (stream, "struct");
 
                 if (show < 0) {
                     if (TYPE_TAG_NAME (type) == NULL)
@@ -372,7 +375,7 @@ pli_type_print_base (struct type* type, struct ui_file* stream,
             break;
 
         case TYPE_CODE_UNDEF:
-            fprintf_filtered (stream, _("STRUCT <unknown>"));
+            fprintf_filtered (stream, _("struct <unknown>"));
             break;
 
         case TYPE_CODE_ERROR:

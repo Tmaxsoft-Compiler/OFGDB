@@ -40,6 +40,8 @@ struct builtin_pli_type {
     struct type* builtin_u_16_fixed_bin;
     struct type* builtin_s_32_fixed_bin;
     struct type* builtin_u_32_fixed_bin;
+    struct type* builtin_s_64_fixed_bin;
+    struct type* builtin_u_64_fixed_bin;
     struct type* builtin_f_float_dec;
     struct type* builtin_f_float_bin;
     struct type* builtin_d_float_dec;

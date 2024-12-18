@@ -242,15 +242,18 @@ enum pli_primitive_types {
     pli_primitive_type_fixed_dec,
 
     /* FIXED BIN type */
-    /** 8 byte */
+    /** 1 byte */
     pli_primitive_type_s_8_fixed_bin,
     pli_primitive_type_u_8_fixed_bin,
-    /** 16 byte */
+    /** 2 byte */
     pli_primitive_type_s_16_fixed_bin,
     pli_primitive_type_u_16_fixed_bin,
-    /** 32 byte */
+    /** 4 byte */
     pli_primitive_type_s_32_fixed_bin,
     pli_primitive_type_u_32_fixed_bin,
+    /** 8 byte */
+    pli_primitive_type_s_64_fixed_bin,
+    pli_primitive_type_u_64_fixed_bin,
 
     /* FLOAT type */
     /** float */
@@ -298,6 +301,8 @@ pli_language_arch_info (struct gdbarch* gdbarch, struct language_arch_info* lai)
     lai->primitive_type_vector [pli_primitive_type_u_16_fixed_bin] = builtin->builtin_u_16_fixed_bin;
     lai->primitive_type_vector [pli_primitive_type_s_32_fixed_bin] = builtin->builtin_s_32_fixed_bin;
     lai->primitive_type_vector [pli_primitive_type_u_32_fixed_bin] = builtin->builtin_u_32_fixed_bin;
+    lai->primitive_type_vector [pli_primitive_type_s_64_fixed_bin] = builtin->builtin_s_64_fixed_bin;
+    lai->primitive_type_vector [pli_primitive_type_u_64_fixed_bin] = builtin->builtin_u_64_fixed_bin;
 
     lai->primitive_type_vector [pli_primitive_type_f_float_dec] = builtin->builtin_f_float_dec;
     lai->primitive_type_vector [pli_primitive_type_f_float_bin] = builtin->builtin_f_float_bin;
@@ -389,6 +394,8 @@ build_pli_types (struct gdbarch* gdbarch)
     builtin_pli_type->builtin_u_16_fixed_bin = arch_integer_type (gdbarch, 16, 1, "FIXED BINARY");
     builtin_pli_type->builtin_s_32_fixed_bin = arch_integer_type (gdbarch, 32, 0, "FIXED BINARY");
     builtin_pli_type->builtin_u_32_fixed_bin = arch_integer_type (gdbarch, 32, 1, "FIXED BINARY");
+    builtin_pli_type->builtin_s_64_fixed_bin = arch_integer_type (gdbarch, 64, 0, "FIXED BINARY");
+    builtin_pli_type->builtin_u_64_fixed_bin = arch_integer_type (gdbarch, 64, 1, "FIXED BINARY");
 
     builtin_pli_type->builtin_f_float_dec = arch_float_type (gdbarch, 32, "FLOAT DECIMAL", NULL);
     builtin_pli_type->builtin_f_float_bin = arch_float_type (gdbarch, 32, "FLOAT BINARY", NULL);

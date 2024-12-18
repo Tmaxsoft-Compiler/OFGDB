@@ -150,7 +150,7 @@ _print_signed_fixed_bin_val (char* buf, const struct type* type, const gdb_byte*
         fixedbin_value = (int64_t) *fixedbin_val_ptr;
 
         if (endian_flag == 1) {
-#ifdef _BIG_ENDIAN
+#ifndef _BIG_ENDIAN
             int64_t conv_value = 0x0000000000000000;
             conv_value |= (fixedbin_value & 0xff00000000000000) >> 56;
             conv_value |= (fixedbin_value & 0x00ff000000000000) >> 40;
@@ -165,7 +165,7 @@ _print_signed_fixed_bin_val (char* buf, const struct type* type, const gdb_byte*
 #endif
         }
         else if (endian_flag == 2) {
-#ifndef _BIG_ENDIAN
+#ifdef _BIG_ENDIAN
             int64_t conv_value = 0x0000000000000000;
             conv_value |= (fixedbin_value & 0xff00000000000000) >> 56;
             conv_value |= (fixedbin_value & 0x00ff000000000000) >> 40;
