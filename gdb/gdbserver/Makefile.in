@@ -26,6 +26,7 @@ libdir = @libdir@
 tooldir = $(libdir)/$(target_alias)
 
 ofgdb_commit_id = $(shell git --git-dir=$(srcdir)/../../.git rev-parse --short HEAD)
+ofgdb_revision = $(shell git --git-dir=$(srcdir)/../../.git rev-list --count HEAD)
 
 datarootdir = @datarootdir@
 datadir = @datadir@
@@ -402,7 +403,7 @@ force:
 
 version.c: Makefile $(srcdir)/../version.in $(srcdir)/../../bfd/version.h $(srcdir)/../common/create-version.sh
 	$(SHELL) $(srcdir)/../common/create-version.sh $(srcdir)/.. \
-	    $(host_alias) $(target_alias) $(ofgdb_commit_id) version.c
+	    $(host_alias) $(target_alias) $(ofgdb_commit_id) $(ofgdb_revision) version.c
 
 xml-builtin.c: stamp-xml; @true
 stamp-xml: $(XML_DIR)/feature_to_c.sh Makefile $(XML_FILES)

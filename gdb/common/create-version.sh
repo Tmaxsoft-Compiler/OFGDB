@@ -26,7 +26,8 @@ srcdir="$1"
 host_alias="$2"
 target_alias="$3"
 ofgdb_commit_id="$4"
-output="$5"
+ofgdb_revision="$5"
+output="$6"
 
 rm -f version.c-tmp $output version.tmp
 date=`sed -n -e 's/^.* BFD_VERSION_DATE \(.*\)$/\1/p' $srcdir/../bfd/version.h`
@@ -36,5 +37,6 @@ echo 'const char version[] = "'"`sed q version.tmp`"'";' >> version.c-tmp
 echo 'const char host_name[] = "'"$host_alias"'";' >> version.c-tmp
 echo 'const char target_name[] = "'"$target_alias"'";' >> version.c-tmp
 echo 'const char ofgdb_commit_id[] = "'"$ofgdb_commit_id"'";' >> version.c-tmp
+echo 'const char ofgdb_revision[] = "'"$ofgdb_revision"'";' >> version.c-tmp
 mv version.c-tmp $output
 rm -f version.tmp

@@ -31,4 +31,7 @@ extern const char target_name[];
 /* Canonical ofgdb commit id as a string. */
 extern const char ofgdb_commit_id[];
 
+/* Canonical ofgdb revision as a string. */
+extern const char ofgdb_revision[];
+
 #endif /* #ifndef VERSION_H */

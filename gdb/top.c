@@ -1097,7 +1097,7 @@ print_gdb_version (struct ui_file *stream)
      program to parse, and is just canonical program name and version
      number, which starts after last space.  */
 
-  fprintf_filtered (stream, "OpenFrame Debugger (commit ID: %s)\n", ofgdb_commit_id);
+  fprintf_filtered (stream, "OpenFrame Debugger (Revision: %s, CommitID: %s)\n", ofgdb_revision, ofgdb_commit_id);
   fprintf_filtered (stream, "- - - based in GNU gdb %s%s\n", PKGVERSION, version);
 
   /* Second line is a copyright notice.  */

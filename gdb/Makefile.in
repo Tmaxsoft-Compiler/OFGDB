@@ -26,6 +26,7 @@ libdir = @libdir@
 tooldir = $(libdir)/$(target_alias)
 
 ofgdb_commit_id = $(shell git --git-dir=$(srcdir)/../.git rev-parse --short HEAD)
+ofgdb_revision = $(shell git --git-dir=$(srcdir)/../.git rev-list --count HEAD)
 
 datadir = @datadir@
 localedir = @localedir@
@@ -1471,7 +1472,7 @@ $(srcdir)/copying.c: @MAINTAINER_MODE_TRUE@ $(srcdir)/../COPYING3 $(srcdir)/copy
 
 version.c: Makefile version.in $(srcdir)/../bfd/version.h $(srcdir)/common/create-version.sh
 	$(SHELL) $(srcdir)/common/create-version.sh $(srcdir) \
-	    $(host_alias) $(target_alias) $(ofgdb_commit_id) version.c
+	    $(host_alias) $(target_alias) $(ofgdb_commit_id) $(ofgdb_revision) version.c
 
 observer.h: observer.sh doc/observer.texi
 	${srcdir}/observer.sh h ${srcdir}/doc/observer.texi observer.h
