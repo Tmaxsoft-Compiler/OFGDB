@@ -103,7 +103,7 @@ pli_type_print_varspec_prefix (struct type* type, struct ui_file* stream,
             break;
 
         case TYPE_CODE_PTR:
-      		fprintf_filtered (stream, "*");
+            fprintf_filtered (stream, "*");
             break;
 
         /* types that need no prefix */
