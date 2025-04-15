@@ -1,0 +1,3 @@
+skip ofpli_get_function_pointer_by_name
+skip ofcob_function_ptr_by_name
+skip ofcob_function_ptr_by_literal
