@@ -346,4 +346,4 @@ def ofasm_set_address(addr, value, value_length):
 # Code
 set_default_breakpoint()
 
-gdb.execute('call (void*) dlopen("%s/lib/libofasmVM.so", 1)' % os.environ.get("OFASM_HOME"))
+gdb.execute('call dlopen("%s/lib/libofasmVM.so", 1)' % os.environ.get("OFASM_HOME"))
