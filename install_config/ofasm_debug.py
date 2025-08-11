@@ -5,6 +5,7 @@ import subprocess
 import re
 
 # Global variables
+enable_ofasm = True
 default_breakpoint_line = None
 default_breakpoint_number = None
 
@@ -343,7 +344,20 @@ def ofasm_set_address(addr, value, value_length):
     gdb.flush(gdb.STDOUT)
     return
 
-# Code
-set_default_breakpoint()
+## Other
+def remove_internal_breakpoint():
+    global enable_ofasm
+    if enable_ofasm:
+        gdb.execute('delete 2', to_string=True)
+    else:
+        gdb.execute('delete 1', to_string=True)
+    return
 
-gdb.execute('call dlopen("%s/lib/libofasmVM.so", 1)' % os.environ.get("OFASM_HOME"))
+# Code
+try:
+    set_default_breakpoint()
+    gdb.execute('call dlopen("%s/lib/libofasmVM.so", 1)' % os.environ.get("OFASM_HOME"))
+except Exception as e:
+    global enable_ofasm
+    print("Skip OFASM debugging feature: %s" % e)
+    enable_ofasm = False
