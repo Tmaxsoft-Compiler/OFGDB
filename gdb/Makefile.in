@@ -26,7 +26,7 @@ libdir = @libdir@
 tooldir = $(libdir)/$(target_alias)
 
 ofgdb_commit_id = $(shell git --git-dir=$(srcdir)/../.git rev-parse --short HEAD)
-ofgdb_revision = 32_with_python
+ofgdb_revision = 35_with_python
 
 datadir = @datadir@
 localedir = @localedir@
