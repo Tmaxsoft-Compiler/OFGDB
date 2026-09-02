@@ -1612,6 +1612,12 @@ message == an error message without a stack will be printed."),
 #endif
 #endif
 
+#ifdef WITH_PYTHON_PATH
+  /* We override any value that the PYTHONHOME might have, as we want
+ *   to make sure that we use the Python library that comes with GDB. */
+  Py_SetPythonHome (getenv("OFGDB_HOME"));
+#endif
+
   Py_Initialize ();
   PyEval_InitThreads ();
 
