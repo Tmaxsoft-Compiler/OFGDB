@@ -6,21 +6,15 @@ import re
 
 # Global variables
 enable_ofasm = True
-default_breakpoint_line = None
 default_breakpoint_number = None
 
 # Functions
 ## Default breakpoints
 def set_default_breakpoint():
-    global default_breakpoint_line, default_breakpoint_number
-    default_breakpoint_line = int(subprocess.check_output(["ofasm", "--default-bp-line"]).decode())
+    global default_breakpoint_number
 
-    if default_breakpoint_line == None:
-        print('Failed to find OFDEBUG_BREAKPOINT_LINE.')
-        return
+    gdb.execute('break OFAGDB_MARK if firstByte != 0x02', to_string=True)
 
-    gdb.execute('break Interpreter.h:%d if firstByte != 0x02' % default_breakpoint_line, to_string=True)
-    
     breakpoints = gdb.breakpoints()
     if breakpoints:
         default_breakpoint_number = breakpoints[-1].number
@@ -65,7 +59,7 @@ def ofasm_finish(stackframe, vm_gdb_level):
         gdb.execute('finish', to_string=True)
     else:
         disable_breakpoint()
-        gdb.execute('tbreak Interpreter.h:%d if pc == %d' % (default_breakpoint_line, result), to_string=True)
+        gdb.execute('tbreak OFAGDB_MARK if pc == %d' % (result), to_string=True)
         gdb.execute('continue', to_string=True)
     return
 
@@ -77,27 +71,24 @@ def ofasm_vm_finish(vm_gdb_level):
 
 ## Breakpoints
 def ofasm_set_function_breakpoint(entry_name):
-    global default_breakpoint_line
     result = gdb.parse_and_eval('debugApi_setBreakPointByPgmName("%s")' % entry_name)
     if result == 0: # pending
-        gdb.execute('break Interpreter.h:%d if pc == debugApi_setBreakPointByPgmName("%s")' % (default_breakpoint_line, entry_name), to_string=True)
+        gdb.execute('break OFAGDB_MARK if pc == debugApi_setBreakPointByPgmName("%s")' % (entry_name), to_string=True)
     else:
-        gdb.execute('break Interpreter.h:%d if pc == %d' % (default_breakpoint_line, result), to_string=True)
+        gdb.execute('break OFAGDB_MARK if pc == %d' % (result), to_string=True)
     return
 
 def ofasm_set_line_breakpoint(file_name, line):
-    global default_breakpoint_line
     result = gdb.parse_and_eval('debugApi_setBreakPointByFileNameAndLine("%s", %d)' % (file_name, line))
     if result == 0: # pending
-        gdb.execute('break Interpreter.h:%d if pc == debugApi_setBreakPointByFileNameAndLine("%s", %d)' % (default_breakpoint_line, file_name, line), to_string=True)
+        gdb.execute('break OFAGDB_MARK if pc == debugApi_setBreakPointByFileNameAndLine("%s", %d)' % (file_name, line), to_string=True)
     else:
-        gdb.execute('break Interpreter.h:%d if pc == %d' % (default_breakpoint_line, result), to_string=True)
+        gdb.execute('break OFAGDB_MARK if pc == %d' % (result), to_string=True)
     return
 
 def ofasm_add_register_breakpoint(reg_no):
-    global default_breakpoint_line
     gdb.parse_and_eval('debugApi_addRegisterBreakPoint(%d)' % reg_no)
-    gdb.execute('break Interpreter.h:%d if debugApi_checkBreakPointChangedToRegister(%d)' % (default_breakpoint_line, reg_no), to_string=True)
+    gdb.execute('break OFAGDB_MARK if debugApi_checkBreakPointChangedToRegister(%d)' % (reg_no), to_string=True)
     return
 
 def ofasm_delete_register_breakpoint(reg_no, break_no):
@@ -106,9 +97,8 @@ def ofasm_delete_register_breakpoint(reg_no, break_no):
     return
 
 def ofasm_add_symbol_breakpoint(symbol_name, entry_name):
-    global default_breakpoint_line
     gdb.parse_and_eval('debugApi_addSymbolBreakPoint("%s", "%s")' % (symbol_name, entry_name))
-    gdb.execute('break Interpreter.h:%d if debugApi_checkBreakPointChangedToSymbol("%s", "%s")' % (default_breakpoint_line, symbol_name, entry_name), to_string=True)
+    gdb.execute('break OFAGDB_MARK if debugApi_checkBreakPointChangedToSymbol("%s", "%s")' % (symbol_name, entry_name), to_string=True)
     return
 
 def ofasm_delete_symbol_breakpoint(symbol_name, entry_name, break_no):
@@ -117,9 +107,8 @@ def ofasm_delete_symbol_breakpoint(symbol_name, entry_name, break_no):
     return
 
 def ofasm_add_cc_breakpoint():
-    global default_breakpoint_line
     gdb.parse_and_eval('debugApi_ccBreakPointOnOff(true)')
-    gdb.execute('break Interpreter.h:%d if debugApi_checkBreakPointChangedToCC()' % default_breakpoint_line, to_string=True)
+    gdb.execute('break OFAGDB_MARK if debugApi_checkBreakPointChangedToCC()', to_string=True)
     return
 
 def ofasm_delete_cc_breakpoint(break_no):
@@ -356,8 +345,7 @@ def remove_internal_breakpoint():
 # Code
 try:
     set_default_breakpoint()
-    gdb.execute('call dlopen("%s/lib/libofasmVM.so", 1)' % os.environ.get("OFASM_HOME"))
+    gdb.execute('call (void*)dlopen("%s/lib/libofasmVM.so", 1)' % os.environ.get("OFASM_HOME"))
 except Exception as e:
-    global enable_ofasm
     print("Skip OFASM debugging feature: %s" % e)
     enable_ofasm = False
